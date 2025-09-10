@@ -1,0 +1,747 @@
+================================================================================
+PEER EVALUATION SYSTEM - FRONTEND INTEGRATION GUIDE FOR BACKEND DEVELOPERS
+================================================================================
+Document Version: 1.0
+Date: 09/04/2025
+Frontend Lead: Sameer Khan & Deangela Saad
+Purpose: Guide backend developers on frontend requirements and integration points
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. FRONTEND TECHNOLOGY STACK
+2. API ENDPOINTS REQUIRED
+3. DATA STRUCTURES AND VARIABLES
+4. AUTHENTICATION FLOW
+5. STATE MANAGEMENT
+6. ERROR HANDLING REQUIREMENTS
+7. FILE UPLOAD SPECIFICATIONS
+8. REAL-TIME UPDATES
+9. ENVIRONMENT VARIABLES
+10. CORS CONFIGURATION
+11. TESTING ENDPOINTS
+
+================================================================================
+1. FRONTEND TECHNOLOGY STACK
+================================================================================
+- React 18.2.0
+- Material-UI (MUI) 5.14.1
+- React Router 6.14.2
+- Axios for API calls
+- Formik for form handling
+- Chart.js for data visualization
+- JWT for authentication
+
+================================================================================
+2. API ENDPOINTS REQUIRED BY FRONTEND
+================================================================================
+
+BASE URL: http://localhost:5000/api (development)
+         https://api.peerevaluation.edu (production)
+
+AUTHENTICATION ENDPOINTS:
+-------------------------
+POST   /api/auth/login
+       Request:  { email: string, password: string }
+       Response: { access_token: string, professor: { id, name, email } }
+       Headers:  None
+
+POST   /api/auth/register
+       Request:  { email: string, password: string, name: string, department: string }
+       Response: { message: string, professor_id: string }
+       Headers:  None
+
+POST   /api/auth/logout
+       Request:  None
+       Response: { message: string }
+       Headers:  Authorization: Bearer {token}
+
+POST   /api/auth/refresh
+       Request:  { refresh_token: string }
+       Response: { access_token: string }
+       Headers:  None
+
+POST   /api/auth/verify-mfa
+       Request:  { professor_id: string, mfa_code: string }
+       Response: { access_token: string }
+       Headers:  None
+
+COURSE MANAGEMENT ENDPOINTS:
+----------------------------
+GET    /api/courses
+       Request:  None
+       Response: Array of Course objects
+       Headers:  Authorization: Bearer {token}
+
+POST   /api/courses
+       Request:  { course_code: string, course_name: string, semester: string }
+       Response: { id: string, message: string }
+       Headers:  Authorization: Bearer {token}
+
+GET    /api/courses/{course_id}
+       Request:  None
+       Response: Course object with full details
+       Headers:  Authorization: Bearer {token}
+
+PUT    /api/courses/{course_id}
+       Request:  { course_code?: string, course_name?: string, semester?: string }
+       Response: { message: string }
+       Headers:  Authorization: Bearer {token}
+
+DELETE /api/courses/{course_id}
+       Request:  None
+       Response: { message: string }
+       Headers:  Authorization: Bearer {token}
+
+STUDENT ROSTER ENDPOINTS:
+-------------------------
+POST   /api/courses/{course_id}/roster
+       Request:  FormData with 'file' field (CSV/Excel)
+       Response: { message: string, students: string[], errors: string[] }
+       Headers:  Authorization: Bearer {token}, Content-Type: multipart/form-data
+
+GET    /api/courses/{course_id}/students
+       Request:  None
+       Response: Array of Student objects
+       Headers:  Authorization: Bearer {token}
+
+PUT    /api/courses/{course_id}/students/{student_id}
+       Request:  { name?: string, email?: string, team_id?: string }
+       Response: { message: string }
+       Headers:  Authorization: Bearer {token}
+
+DELETE /api/courses/{course_id}/students/{student_id}
+       Request:  None
+       Response: { message: string }
+       Headers:  Authorization: Bearer {token}
+
+POST   /api/courses/{course_id}/students/bulk-delete
+       Request:  { student_ids: string[] }
+       Response: { message: string, deleted_count: number }
+       Headers:  Authorization: Bearer {token}
+
+TEAM MANAGEMENT ENDPOINTS:
+-------------------------
+GET    /api/courses/{course_id}/teams
+       Request:  None
+       Response: Array of Team objects with students
+       Headers:  Authorization: Bearer {token}
+
+POST   /api/courses/{course_id}/teams
+       Request:  { teams: [{ name: string, student_ids: string[] }] }
+       Response: { message: string, teams: string[] }
+       Headers:  Authorization: Bearer {token}
+
+PUT    /api/courses/{course_id}/teams/{team_id}
+       Request:  { name?: string, student_ids?: string[] }
+       Response: { message: string }
+       Headers:  Authorization: Bearer {token}
+
+DELETE /api/courses/{course_id}/teams/{team_id}
+       Request:  None
+       Response: { message: string }
+       Headers:  Authorization: Bearer {token}
+
+POST   /api/courses/{course_id}/teams/auto-assign
+       Request:  { team_size: number, assignment_method: string }
+       Response: { message: string, teams_created: number }
+       Headers:  Authorization: Bearer {token}
+
+EVALUATION ENDPOINTS:
+--------------------
+POST   /api/courses/{course_id}/evaluations/send
+       Request:  { deadline: string (ISO date), custom_message?: string }
+       Response: { message: string, emails_sent: number, failed: string[] }
+       Headers:  Authorization: Bearer {token}
+
+GET    /api/courses/{course_id}/evaluations/status
+       Request:  None
+       Response: { total: number, completed: number, pending: number, students: Array }
+       Headers:  Authorization: Bearer {token}
+
+POST   /api/courses/{course_id}/evaluations/remind
+       Request:  { student_ids?: string[] } (empty for all pending)
+       Response: { message: string, reminders_sent: number }
+       Headers:  Authorization: Bearer {token}
+
+GET    /api/evaluate/{token}
+       Request:  None
+       Response: Evaluation form data (see structure below)
+       Headers:  None (public endpoint)
+
+POST   /api/evaluate/{token}
+       Request:  { evaluations: Array of evaluation data }
+       Response: { message: string, confirmation_code: string }
+       Headers:  None (public endpoint)
+
+GET    /api/evaluate/{token}/status
+       Request:  None
+       Response: { is_complete: boolean, submitted_at?: string }
+       Headers:  None (public endpoint)
+
+REPORTING ENDPOINTS:
+-------------------
+GET    /api/courses/{course_id}/reports
+       Request:  Query params: ?include_ai=boolean
+       Response: Report data object (see structure below)
+       Headers:  Authorization: Bearer {token}
+
+GET    /api/courses/{course_id}/reports/download
+       Request:  Query params: ?format=pdf|csv|excel
+       Response: File download
+       Headers:  Authorization: Bearer {token}
+
+GET    /api/courses/{course_id}/reports/student/{student_id}
+       Request:  None
+       Response: Individual student report
+       Headers:  Authorization: Bearer {token}
+
+GET    /api/courses/{course_id}/reports/team/{team_id}
+       Request:  None
+       Response: Team report
+       Headers:  Authorization: Bearer {token}
+
+POST   /api/courses/{course_id}/reports/generate
+       Request:  { report_type: string, options: object }
+       Response: { report_id: string, status: string }
+       Headers:  Authorization: Bearer {token}
+
+AI FEATURE ENDPOINTS (Optional):
+--------------------------------
+POST   /api/ai/summarize
+       Request:  { comments: string[], max_length?: number }
+       Response: { summary: string, key_themes: string[], sentiment: object }
+       Headers:  Authorization: Bearer {token}
+
+POST   /api/ai/red-flags
+       Request:  { evaluation_ids: string[] }
+       Response: { red_flags: Array, severity_levels: object }
+       Headers:  Authorization: Bearer {token}
+
+POST   /api/ai/sentiment
+       Request:  { text: string }
+       Response: { sentiment: string, score: number, confidence: number }
+       Headers:  Authorization: Bearer {token}
+
+================================================================================
+3. DATA STRUCTURES AND VARIABLES USED IN FRONTEND
+================================================================================
+
+PROFESSOR OBJECT:
+----------------
+professor = {
+  id: string (UUID),
+  email: string,
+  name: string,
+  department: string,
+  mfa_enabled: boolean,
+  created_at: string (ISO date),
+  last_login: string (ISO date)
+}
+
+COURSE OBJECT:
+-------------
+course = {
+  id: string (UUID),
+  course_code: string,          // e.g., "CS 4850"
+  course_name: string,          // e.g., "Software Engineering"
+  semester: string,             // e.g., "Fall 2025"
+  professor_id: string (UUID),
+  student_count: number,
+  team_count: number,
+  is_active: boolean,
+  created_at: string (ISO date),
+  evaluation_status: {
+    total: number,
+    completed: number,
+    pending: number
+  }
+}
+
+STUDENT OBJECT:
+--------------
+student = {
+  id: string (UUID),
+  student_id: string,           // University ID
+  name: string,
+  email: string,
+  course_id: string (UUID),
+  team_id: string (UUID) | null,
+  evaluation_token: string (UUID),
+  evaluation_completed: boolean,
+  created_at: string (ISO date)
+}
+
+TEAM OBJECT:
+-----------
+team = {
+  id: string (UUID),
+  team_name: string,
+  course_id: string (UUID),
+  students: Student[],          // Array of Student objects
+  created_at: string (ISO date)
+}
+
+EVALUATION FORM OBJECT:
+----------------------
+evaluationForm = {
+  evaluator: {
+    name: string,
+    team: string
+  },
+  teammates: [
+    {
+      id: string (UUID),
+      name: string
+    }
+  ],
+  criteria: [
+    {
+      id: string,              // e.g., "contribution"
+      label: string,           // e.g., "Contribution to Project"
+      type: string,            // "rating" | "text"
+      required: boolean,
+      min_length?: number,     // For text fields
+      max_length?: number      // For text fields
+    }
+  ],
+  deadline: string (ISO date)
+}
+
+EVALUATION SUBMISSION OBJECT:
+----------------------------
+evaluationSubmission = {
+  evaluations: [
+    {
+      teammate_id: string (UUID),
+      ratings: {
+        contribution: number (1-5),
+        communication: number (1-5),
+        reliability: number (1-5),
+        collaboration: number (1-5),
+        quality: number (1-5)
+      },
+      comments: {
+        strengths: string,
+        improvements: string,
+        additional: string (optional)
+      }
+    }
+  ],
+  submitted_at: string (ISO date)
+}
+
+REPORT DATA OBJECT:
+------------------
+reportData = {
+  course_info: Course,
+  generated_at: string (ISO date),
+  summary: {
+    total_students: number,
+    evaluations_completed: number,
+    average_rating: number,
+    completion_rate: number
+  },
+  team_reports: [
+    {
+      team_id: string,
+      team_name: string,
+      members: number,
+      average_ratings: object,
+      individual_scores: Array
+    }
+  ],
+  student_reports: [
+    {
+      student_id: string,
+      student_name: string,
+      team: string,
+      ratings_received: object,
+      comments_received: Array,
+      participation_score: number
+    }
+  ],
+  ai_insights: {               // Optional
+    summary: string,
+    key_themes: string[],
+    concerns: Array,
+    recommendations: string[]
+  }
+}
+
+ERROR RESPONSE OBJECT:
+---------------------
+errorResponse = {
+  error: {
+    code: string,              // e.g., "VALIDATION_ERROR"
+    message: string,           // User-friendly message
+    details: object,           // Optional additional details
+    timestamp: string (ISO date)
+  }
+}
+
+================================================================================
+4. AUTHENTICATION FLOW REQUIREMENTS
+================================================================================
+
+1. Frontend stores JWT token in:
+   - localStorage key: 'peer_eval_token'
+   - sessionStorage key: 'peer_eval_session' (for remember me = false)
+
+2. All authenticated requests must include header:
+   Authorization: Bearer {token}
+
+3. Token expiry handling:
+   - Frontend checks token expiry before each request
+   - If expired, attempts refresh using refresh_token
+   - If refresh fails, redirects to login
+
+4. MFA Flow (if enabled):
+   - After initial login, if mfa_enabled = true
+   - Frontend shows MFA code input
+   - Sends code to /api/auth/verify-mfa
+   - Only then receives access_token
+
+5. Logout process:
+   - Call /api/auth/logout endpoint
+   - Clear localStorage/sessionStorage
+   - Redirect to login page
+
+================================================================================
+5. STATE MANAGEMENT IN FRONTEND
+================================================================================
+
+The frontend uses React Context for global state:
+
+AuthContext:
+-----------
+{
+  isAuthenticated: boolean,
+  professor: Professor | null,
+  token: string | null,
+  login: (email, password) => Promise,
+  logout: () => void,
+  refreshToken: () => Promise
+}
+
+CourseContext:
+-------------
+{
+  courses: Course[],
+  selectedCourse: Course | null,
+  loading: boolean,
+  error: string | null,
+  fetchCourses: () => Promise,
+  selectCourse: (courseId) => void,
+  createCourse: (courseData) => Promise,
+  updateCourse: (courseId, data) => Promise,
+  deleteCourse: (courseId) => Promise
+}
+
+NotificationContext:
+-------------------
+{
+  notifications: Array,
+  addNotification: (message, severity) => void,
+  removeNotification: (id) => void
+}
+
+================================================================================
+6. ERROR HANDLING REQUIREMENTS
+================================================================================
+
+HTTP Status Codes Expected:
+---------------------------
+200 - Success (GET, PUT)
+201 - Created (POST)
+204 - No Content (DELETE)
+400 - Bad Request (validation errors)
+401 - Unauthorized (invalid/expired token)
+403 - Forbidden (insufficient permissions)
+404 - Not Found
+409 - Conflict (duplicate data)
+422 - Unprocessable Entity (business logic errors)
+500 - Internal Server Error
+503 - Service Unavailable
+
+Error Response Format:
+---------------------
+All error responses should follow this structure:
+{
+  error: {
+    code: string,
+    message: string,
+    details: {
+      field_errors?: object,
+      missing_fields?: string[],
+      invalid_values?: object
+    },
+    timestamp: string
+  }
+}
+
+Frontend Error Display:
+----------------------
+- 400 errors: Show in form field validation
+- 401 errors: Redirect to login
+- 403 errors: Show permission denied message
+- 404 errors: Show "not found" page
+- 500 errors: Show generic error message
+- Network errors: Show connection error message
+
+================================================================================
+7. FILE UPLOAD SPECIFICATIONS
+================================================================================
+
+CSV Upload Requirements:
+-----------------------
+- Max file size: 10MB
+- Encoding: UTF-8
+- Required columns: student_id, name, email
+- Optional columns: team_name, group_number
+- Delimiter: comma (,)
+- Header row: required
+
+Sample CSV Format:
+-----------------
+student_id,name,email,team_name
+001234567,John Doe,john.doe@university.edu,Team Alpha
+001234568,Jane Smith,jane.smith@university.edu,Team Alpha
+001234569,Bob Johnson,bob.johnson@university.edu,Team Beta
+
+Excel Upload Requirements:
+-------------------------
+- Max file size: 10MB
+- Formats: .xlsx, .xls
+- First sheet used for import
+- Same column requirements as CSV
+
+Upload Progress Tracking:
+------------------------
+Frontend expects progress events from backend:
+- onUploadProgress callback with loaded/total bytes
+- Progress bar updates based on percentage
+- Completion triggers success/error message
+
+================================================================================
+8. REAL-TIME UPDATES (WebSocket - Optional)
+================================================================================
+
+If WebSocket implemented, frontend expects:
+
+Connection URL: ws://localhost:5000/ws
+              wss://api.peerevaluation.edu/ws (production)
+
+Events to Listen:
+----------------
+{
+  event: 'evaluation.submitted',
+  data: {
+    course_id: string,
+    student_id: string,
+    timestamp: string
+  }
+}
+
+{
+  event: 'roster.updated',
+  data: {
+    course_id: string,
+    change_type: 'add' | 'remove' | 'update',
+    affected_count: number
+  }
+}
+
+{
+  event: 'report.ready',
+  data: {
+    course_id: string,
+    report_id: string,
+    download_url: string
+  }
+}
+
+================================================================================
+9. ENVIRONMENT VARIABLES NEEDED
+================================================================================
+
+Frontend .env file:
+------------------
+REACT_APP_API_URL=http://localhost:5000/api
+REACT_APP_WS_URL=ws://localhost:5000/ws
+REACT_APP_ENVIRONMENT=development
+REACT_APP_VERSION=1.0.0
+REACT_APP_ENABLE_AI_FEATURES=true
+REACT_APP_MAX_FILE_SIZE=10485760
+REACT_APP_SESSION_TIMEOUT=1800000
+REACT_APP_GOOGLE_ANALYTICS_ID=UA-XXXXXXXXX-X
+
+Backend should provide these values for production deployment.
+
+================================================================================
+10. CORS CONFIGURATION REQUIREMENTS
+================================================================================
+
+Backend must allow these origins:
+---------------------------------
+Development:
+- http://localhost:3000
+- http://localhost:3001
+- http://127.0.0.1:3000
+
+Production:
+- https://peerevaluation.edu
+- https://www.peerevaluation.edu
+- https://app.peerevaluation.edu
+
+Required CORS Headers:
+---------------------
+Access-Control-Allow-Origin: <frontend-url>
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization, X-Request-ID
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 86400
+
+================================================================================
+11. TESTING REQUIREMENTS
+================================================================================
+
+Frontend Test User Expectations:
+--------------------------------
+The frontend expects these test accounts to be available in development:
+
+1. Professor Account:
+   Email: test.professor@university.edu
+   Password: TestPass123!
+   MFA: disabled
+
+2. Professor with MFA:
+   Email: secure.professor@university.edu
+   Password: SecurePass123!
+   MFA: enabled
+
+3. Student Evaluation Links:
+   Token: test-token-123
+   Token: test-token-456
+
+Test Data Requirements:
+----------------------
+- At least 3 test courses
+- At least 20 test students per course
+- At least 4 teams per course
+- Sample evaluations with various ratings
+- Sample comments for AI testing
+
+API Response Time Expectations:
+-------------------------------
+- Authentication: < 500ms
+- Course list: < 1000ms
+- File upload: < 30s for 10MB file
+- Report generation: < 5000ms
+- AI summarization: < 3000ms
+
+================================================================================
+FRONTEND FILE STRUCTURE FOR BACKEND REFERENCE
+================================================================================
+
+src/
+├── components/           # Reusable UI components
+│   ├── common/
+│   │   ├── LoadingSpinner.js
+│   │   ├── ErrorBoundary.js
+│   │   ├── ConfirmDialog.js
+│   │   └── Notification.js
+│   ├── forms/
+│   │   ├── CourseForm.js
+│   │   ├── TeamAssignmentForm.js
+│   │   └── EvaluationForm.js
+│   └── charts/
+│       ├── RatingChart.js
+│       └── CompletionChart.js
+├── pages/               # Main page components
+│   ├── Login.js
+│   ├── Dashboard.js
+│   ├── CourseManagement.js
+│   ├── TeamAssignment.js
+│   ├── Reports.js
+│   └── StudentEvaluation.js
+├── services/            # API communication layer
+│   ├── api.js          # Axios instance and interceptors
+│   ├── authService.js  # Authentication related API calls
+│   ├── courseService.js # Course management API calls
+│   └── evaluationService.js # Evaluation API calls
+├── utils/              # Helper functions
+│   ├── validators.js   # Form validation functions
+│   ├── formatters.js   # Data formatting functions
+│   └── constants.js    # Application constants
+├── contexts/           # React Context providers
+│   ├── AuthContext.js
+│   ├── CourseContext.js
+│   └── NotificationContext.js
+└── styles/            # CSS and theme files
+    ├── theme.js
+    └── global.css
+
+================================================================================
+CRITICAL INTEGRATION POINTS
+================================================================================
+
+1. LOGIN FLOW:
+   - Frontend sends email/password
+   - Backend validates and returns token + professor object
+   - Frontend stores token and redirects to dashboard
+
+2. FILE UPLOAD FLOW:
+   - Frontend validates file locally (size, format)
+   - Sends as FormData with progress tracking
+   - Backend processes and returns results
+   - Frontend displays success/error with details
+
+3. EVALUATION SUBMISSION:
+   - Student accesses via token URL (no auth required)
+   - Frontend validates all fields before submission
+   - Backend processes and sends confirmation
+   - Frontend shows success message with confirmation code
+
+4. REPORT GENERATION:
+   - Frontend requests report with parameters
+   - Backend generates and returns data or file
+   - Frontend displays or triggers download
+   - Large reports may require async generation
+
+================================================================================
+BACKEND CHECKLIST
+================================================================================
+
+□ Implement all listed API endpoints
+□ Set up PostgreSQL database with proper schema
+□ Configure JWT authentication with 1-hour expiry
+□ Implement file upload with validation
+□ Set up email service (SMTP)
+□ Configure CORS for frontend URLs
+□ Create test data and accounts
+□ Implement error handling with proper format
+□ Add request logging for debugging
+□ Set up WebSocket server (optional)
+□ Implement AI features (optional)
+□ Create API documentation
+□ Set up rate limiting
+□ Implement data validation
+□ Configure HTTPS for production
+
+================================================================================
+CONTACT INFORMATION
+================================================================================
+
+For frontend-related questions:
+- Primary: Sameer Khan (Frontend Development Lead)
+- Secondary: Deangela Saad (Frontend Development)
+- Team Leader: Preston Jordan (Project Coordination)
+
+Repository: [GitHub repository URL]
+Documentation: [Project documentation URL]
+Team Communication: Microsoft Teams / Email
+
+================================================================================
+END OF DOCUMENT
+================================================================================
