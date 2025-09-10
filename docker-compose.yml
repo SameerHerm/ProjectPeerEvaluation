@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: peer_eval_db
+      POSTGRES_USER: peer_eval_user
+      POSTGRES_PASSWORD: secure_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./src/backend
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://peer_eval_user:secure_password@postgres:5432/peer_eval_db
+      JWT_SECRET_KEY: your-secret-key
+      SMTP_SERVER: smtp.gmail.com
+      SMTP_PORT: 587
+    depends_on:
+      - postgres
+    volumes:
+      - ./src/backend:/app
+
+  frontend:
+    build: ./src/frontend
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:5000/api
+    depends_on:
+      - backend
+    volumes:
+      - ./src/frontend:/app
+
+volumes:
+  postgres_data:
