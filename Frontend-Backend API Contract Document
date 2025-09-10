@@ -1,0 +1,162 @@
+# Frontend-Backend Communication Terms and API Contract
+
+## Authentication Terms
+- **access_token**: JWT token for authenticated requests
+- **refresh_token**: Token for refreshing expired access tokens
+- **professor_id**: Unique identifier for professor accounts
+- **session_timeout**: 30-minute inactivity timeout
+
+## Data Transfer Objects (DTOs)
+
+### Professor DTO
+{
+  "id": "string (UUID)",
+  "email": "string",
+  "name": "string",
+  "department": "string",
+  "mfa_enabled": "boolean"
+}
+
+### Course DTO
+{
+  "id": "string (UUID)",
+  "course_code": "string",
+  "course_name": "string",
+  "semester": "string",
+  "professor_id": "string (UUID)",
+  "student_count": "integer",
+  "team_count": "integer",
+  "is_active": "boolean"
+}
+
+### Student DTO
+{
+  "id": "string (UUID)",
+  "student_id": "string",
+  "name": "string",
+  "email": "string",
+  "course_id": "string (UUID)",
+  "team_id": "string (UUID)",
+  "evaluation_token": "string (UUID)"
+}
+
+### Team DTO
+{
+  "id": "string (UUID)",
+  "team_name": "string",
+  "course_id": "string (UUID)",
+  "student_ids": ["array of UUIDs"]
+}
+
+### Evaluation DTO
+{
+  "id": "string (UUID)",
+  "course_id": "string (UUID)",
+  "evaluator_id": "string (UUID)",
+  "evaluatee_id": "string (UUID)",
+  "ratings": {
+    "contribution": "integer (1-5)",
+    "communication": "integer (1-5)",
+    "reliability": "integer (1-5)",
+    "collaboration": "integer (1-5)",
+    "quality": "integer (1-5)"
+  },
+  "comments": {
+    "strengths": "string (50-500 chars)",
+    "improvements": "string (50-500 chars)",
+    "additional": "string (optional, max 500 chars)"
+  },
+  "submitted_at": "ISO 8601 datetime",
+  "is_complete": "boolean"
+}
+
+## API Endpoints Summary
+
+### Authentication
+- POST /api/auth/login
+- POST /api/auth/register
+- POST /api/auth/logout
+- POST /api/auth/refresh
+
+### Course Management
+- GET /api/courses
+- POST /api/courses
+- GET /api/courses/{course_id}
+- PUT /api/courses/{course_id}
+- DELETE /api/courses/{course_id}
+
+### Roster Management
+- POST /api/courses/{course_id}/roster
+- GET /api/courses/{course_id}/students
+- PUT /api/courses/{course_id}/students/{student_id}
+- DELETE /api/courses/{course_id}/students/{student_id}
+
+### Team Management
+- POST /api/courses/{course_id}/teams
+- GET /api/courses/{course_id}/teams
+- PUT /api/courses/{course_id}/teams/{team_id}
+- DELETE /api/courses/{course_id}/teams/{team_id}
+
+### Evaluation Management
+- POST /api/courses/{course_id}/evaluations/send
+- GET /api/courses/{course_id}/evaluations/status
+- POST /api/courses/{course_id}/evaluations/remind
+- GET /api/evaluate/{token}
+- POST /api/evaluate/{token}
+
+### Reporting
+- GET /api/courses/{course_id}/reports
+- GET /api/courses/{course_id}/reports/download
+- GET /api/courses/{course_id}/reports/student/{student_id}
+- GET /api/courses/{course_id}/reports/team/{team_id}
+
+### AI Features (Optional)
+- POST /api/ai/summarize
+- POST /api/ai/red-flags
+- POST /api/ai/sentiment
+
+## Request/Response Headers
+- Content-Type: application/json (for all JSON requests)
+- Authorization: Bearer {access_token} (for authenticated requests)
+- X-Request-ID: UUID (for request tracking)
+
+## Error Response Format
+{
+  "error": {
+    "code": "string",
+    "message": "string",
+    "details": "object (optional)",
+    "timestamp": "ISO 8601 datetime"
+  }
+}
+
+## Status Codes
+- 200: Success
+- 201: Created
+- 400: Bad Request
+- 401: Unauthorized
+- 403: Forbidden
+- 404: Not Found
+- 409: Conflict
+- 500: Internal Server Error
+- 503: Service Unavailable
+
+## Validation Rules
+- Email: Must be valid format (regex: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$)
+- Student ID: Alphanumeric, 5-20 characters
+- Names: 2-100 characters, letters and spaces only
+- Passwords: Minimum 8 characters, at least 1 uppercase, 1 lowercase, 1 number
+- Ratings: Integer between 1-5
+- Comments: Minimum 50 characters, maximum 500 characters
+
+## File Upload Specifications
+- CSV Format: UTF-8 encoding, comma-separated
+- Required Columns: student_id, name, email
+- Maximum File Size: 10MB
+- Supported Extensions: .csv, .xlsx
+
+## WebSocket Events (if real-time features added)
+- evaluation.submitted
+- evaluation.reminder.sent
+- report.generated
+- roster.uploaded
