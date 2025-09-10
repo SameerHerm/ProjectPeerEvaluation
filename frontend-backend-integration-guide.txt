@@ -729,19 +729,3 @@ BACKEND CHECKLIST
 □ Implement data validation
 □ Configure HTTPS for production
 
-================================================================================
-CONTACT INFORMATION
-================================================================================
-
-For frontend-related questions:
-- Primary: Sameer Khan (Frontend Development Lead)
-- Secondary: Deangela Saad (Frontend Development)
-- Team Leader: Preston Jordan (Project Coordination)
-
-Repository: [GitHub repository URL]
-Documentation: [Project documentation URL]
-Team Communication: Microsoft Teams / Email
-
-================================================================================
-END OF DOCUMENT
-================================================================================
