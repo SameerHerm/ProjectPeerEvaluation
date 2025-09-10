@@ -1,0 +1,43 @@
+peer-evaluation-system/
+├── docs/
+│   ├── requirements/
+│   │   ├── functional-requirements.md
+│   │   ├── non-functional-requirements.md
+│   │   └── user-stories.md
+│   ├── architecture/
+│   │   ├── system-architecture.md
+│   │   ├── database-schema.md
+│   │   └── api-documentation.md
+│   ├── user-manual/
+│   │   ├── professor-guide.md
+│   │   └── student-guide.md
+│   ├── research-report/
+│   │   └── tech-stack-analysis.md
+│   ├── designs/
+│   │   ├── ui-mockups/
+│   │   └── wireframes/
+│   ├── meeting-notes/
+│   │   └── weekly-meetings.md
+│   ├── reports/
+│   │   └── samples/
+│   └── gantt/
+│       └── project-schedule.gantt
+├── src/
+│   ├── backend/
+│   │   ├── api/
+│   │   ├── models/
+│   │   ├── services/
+│   │   ├── utils/
+│   │   └── config/
+│   └── frontend/
+│       ├── components/
+│       ├── pages/
+│       ├── services/
+│       ├── utils/
+│       └── styles/
+├── .github/
+│   ├── issue_templates/
+│   └── pull_request_template.md
+├── LICENSE
+├── CONTRIBUTING.md
+└── README.md
