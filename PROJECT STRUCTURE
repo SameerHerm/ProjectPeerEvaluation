@@ -40,4 +40,5 @@ peer-evaluation-system/
 │   └── pull_request_template.md
 ├── LICENSE
 ├── CONTRIBUTING.md
-└── README.md
+├── README.md
+└── public/
