@@ -1,7 +1,13 @@
 import axios from 'axios';
 
-export const registerProfessor = async (data) => {
-	// Adjust the URL if your backend runs on a different port
-	const res = await axios.post('/api/auth/register', data);
-	return res.data;
-};
+const api = axios.create({
+  baseURL: 'http://localhost:5000/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Example named export (keep or add more as needed)
+// export const registerProfessor = async (data) => { ... };
+
+export default api;

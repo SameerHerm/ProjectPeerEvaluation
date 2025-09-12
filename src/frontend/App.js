@@ -1,13 +1,18 @@
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import './App.css';
+import CourseManagement from './pages/CourseManagement';
+import LoginPage from './pages/LoginPage';
 
 function App() {
-	return (
-		<div style={{ padding: '2rem', background: '#f0f0f0' }}>
-			<h1>Professor Login</h1>
-			<p style={{ color: 'green', fontWeight: 'bold' }}>If you see this, React is rendering correctly!</p>
-			<button onClick={() => alert('Button works!')}>Test Button</button>
-		</div>
-	);
+    return (
+        <Router>
+            <Routes>
+                <Route path="/" element={<LoginPage />} />
+                <Route path="/course-management" element={<CourseManagement />} />
+            </Routes>
+        </Router>
+    );
 }
 
 export default App;
