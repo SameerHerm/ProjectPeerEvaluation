@@ -111,7 +111,10 @@ function LoginPage() {
             style={{ width: '100%', padding: '8px' }}
           />
         </div>
-        <button type="submit" style={{ width: '100%', padding: '10px' }}>
+        <button
+          type="submit"
+          style={{ width: '100%', padding: '10px', display: 'block', maxWidth: '100%' }}
+        >
           {isRegistering ? 'Register' : 'Login'}
         </button>
       </form>

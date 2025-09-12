@@ -18,6 +18,12 @@ mongoose.connect(process.env.MONGO_URI)
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/courses', require('./routes/courses'));
 app.use('/api/evaluate', require('./routes/evaluate'));
+app.use('/api/ai', require('./routes/ai'));
+
+
+// Global error handler (must be last)
+const errorHandler = require('./middleware/errorHandler');
+app.use(errorHandler);
 
 // Start Server
 const PORT = process.env.PORT || 5000;
