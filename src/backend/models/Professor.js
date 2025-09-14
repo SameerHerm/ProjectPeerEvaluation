@@ -37,3 +37,17 @@ const ProfessorSchema = new mongoose.Schema({
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 
 module.exports = mongoose.model('Professor', ProfessorSchema);
+
+const mongoose = require("mongoose");
+
+const professorSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  name: { type: String, required: true },
+  department: String,
+  mfa_enabled: { type: Boolean, default: false },
+  created_at: { type: Date, default: Date.now },
+  last_login: Date
+});
+
+module.exports = mongoose.model("Professor", professorSchema);
