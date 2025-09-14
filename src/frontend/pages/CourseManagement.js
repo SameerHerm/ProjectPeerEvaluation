@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+
 import {
   Grid,
   Paper,
@@ -21,30 +22,206 @@ import {
   Box,
   LinearProgress
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  // eslint-disable-next-line
-  Edit as EditIcon,
-  // eslint-disable-next-line
-  Delete as DeleteIcon,
-  Upload as UploadIcon,
-  Send as SendIcon,
-  Group as GroupIcon,
-  Assessment as AssessmentIcon
-} from '@mui/icons-material';
+
+import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import UploadIcon from '@mui/icons-material/Upload';
+import SendIcon from '@mui/icons-material/Send';
+import GroupIcon from '@mui/icons-material/Group';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import PersonIcon from '@mui/icons-material/Person';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import api, { getCourseById } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import styles from '../styles/CourseManagement.module.css';
 import '../App.css';
 
 function CourseManagement() {
+  // State for add/edit student dialogs
+  const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [editStudentOpen, setEditStudentOpen] = useState(false);
+  const [studentToEdit, setStudentToEdit] = useState(null);
+  const [studentForm, setStudentForm] = useState({ student_id: '', name: '', email: '' });
+
+  // Handler stubs for add, edit, delete
+  const handleAddStudent = async () => {
+    if (!studentsCourse) return;
+    try {
+      await api.post(`/courses/${studentsCourse._id || studentsCourse.id}/students`, studentForm);
+      setAlert({ severity: 'success', message: 'Student added successfully' });
+      setAddStudentOpen(false);
+      setStudentForm({ student_id: '', name: '', email: '' });
+      // Refresh students list
+      const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
+      setStudents(response.data);
+    } catch (error) {
+      setAlert({ severity: 'error', message: 'Failed to add student' });
+    }
+  };
+
+  const handleEditStudent = (student) => {
+    setStudentToEdit(student);
+    setStudentForm({ student_id: student.student_id, name: student.name, email: student.email });
+    setEditStudentOpen(true);
+  };
+
+  const handleUpdateStudent = async () => {
+    if (!studentsCourse || !studentToEdit) return;
+    try {
+      await api.put(`/courses/${studentsCourse._id || studentsCourse.id}/students/${studentToEdit._id || studentToEdit.id}`, studentForm);
+      setAlert({ severity: 'success', message: 'Student updated successfully' });
+      setEditStudentOpen(false);
+      setStudentToEdit(null);
+      setStudentForm({ student_id: '', name: '', email: '' });
+      // Refresh students list
+      const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
+      setStudents(response.data);
+    } catch (error) {
+      setAlert({ severity: 'error', message: 'Failed to update student' });
+    }
+  };
+
+  const handleDeleteStudent = async (student) => {
+    if (!studentsCourse || !student) return;
+    try {
+      await api.delete(`/courses/${studentsCourse._id || studentsCourse.id}/students/${student._id || student.id}`);
+      setAlert({ severity: 'success', message: 'Student deleted successfully' });
+      // Refresh students list
+      const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
+      setStudents(response.data);
+    } catch (error) {
+      setAlert({ severity: 'error', message: 'Failed to delete student' });
+    }
+  };
+      {/* Add Student Dialog */}
+      <Dialog open={addStudentOpen} onClose={() => setAddStudentOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Add Student</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Student ID"
+            value={studentForm.student_id}
+            onChange={e => setStudentForm({ ...studentForm, student_id: e.target.value })}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Name"
+            value={studentForm.name}
+            onChange={e => setStudentForm({ ...studentForm, name: e.target.value })}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Email"
+            value={studentForm.email}
+            onChange={e => setStudentForm({ ...studentForm, email: e.target.value })}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddStudentOpen(false)}>Cancel</Button>
+          <Button onClick={handleAddStudent} variant="contained" disabled={!studentForm.student_id || !studentForm.name || !studentForm.email}>Add</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Student Dialog */}
+      <Dialog open={editStudentOpen} onClose={() => setEditStudentOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Edit Student</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Student ID"
+            value={studentForm.student_id}
+            onChange={e => setStudentForm({ ...studentForm, student_id: e.target.value })}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Name"
+            value={studentForm.name}
+            onChange={e => setStudentForm({ ...studentForm, name: e.target.value })}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Email"
+            value={studentForm.email}
+            onChange={e => setStudentForm({ ...studentForm, email: e.target.value })}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditStudentOpen(false)}>Cancel</Button>
+          <Button onClick={handleUpdateStudent} variant="contained" disabled={!studentForm.student_id || !studentForm.name || !studentForm.email}>Save</Button>
+        </DialogActions>
+      </Dialog>
+  const [studentsDialogOpen, setStudentsDialogOpen] = useState(false);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [students, setStudents] = useState([]);
+  const [studentsCourse, setStudentsCourse] = useState(null);
+
+  const handleViewStudents = async (course) => {
+    setStudentsDialogOpen(true);
+    setStudentsCourse(course);
+    setStudentsLoading(true);
+    try {
+      const response = await api.get(`/courses/${course._id || course.id}/students`);
+      setStudents(response.data);
+    } catch (error) {
+      setStudents([]);
+    } finally {
+      setStudentsLoading(false);
+    }
+  };
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [courseToEdit, setCourseToEdit] = useState(null);
+  const [editCourse, setEditCourse] = useState({ course_code: '', course_name: '', semester: '' });
+
+  const handleEditClick = (course) => {
+    setCourseToEdit(course);
+    setEditCourse({
+      course_code: course.course_code,
+      course_name: course.course_name,
+      semester: course.semester
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEditCourse = async () => {
+    if (!courseToEdit) return;
+    try {
+      await api.put(`/courses/${courseToEdit._id || courseToEdit.id}`, editCourse);
+      setAlert({ severity: 'success', message: 'Course updated successfully' });
+      setEditDialogOpen(false);
+      setCourseToEdit(null);
+      fetchCoursesWithCounts();
+    } catch (error) {
+      setAlert({ severity: 'error', message: 'Failed to update course' });
+    }
+  };
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState(null);
+  const handleDeleteCourse = async () => {
+    if (!courseToDelete || !(courseToDelete.id || courseToDelete._id)) return;
+    const courseId = courseToDelete.id || courseToDelete._id;
+    try {
+      await api.delete(`/courses/${courseId}`);
+      setAlert({ severity: 'success', message: 'Course deleted successfully' });
+      setDeleteDialogOpen(false);
+      setCourseToDelete(null);
+      fetchCoursesWithCounts();
+    } catch (error) {
+      setAlert({ severity: 'error', message: 'Failed to delete course' });
+    }
+  };
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [newCourse, setNewCourse] = useState({
     course_code: '',
@@ -55,14 +232,33 @@ function CourseManagement() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [alert, setAlert] = useState(null);
 
+
   useEffect(() => {
-    fetchCourses();
+    fetchCoursesWithCounts();
   }, []);
 
-  const fetchCourses = async () => {
+
+  // Fetch all courses, then update each with the latest student_count
+  const fetchCoursesWithCounts = async () => {
+    setLoading(true);
     try {
       const response = await api.get('/courses');
-  setCourses(response.data.courses);
+      let coursesList = response.data;
+      // Fetch the latest course object for each course in parallel
+      const updatedCourses = await Promise.all(
+        coursesList.map(async (course) => {
+          try {
+            const fresh = await getCourseById(course._id || course.id);
+            // Use all fields from the fresh course object
+            return { ...fresh };
+          } catch (e) {
+            // fallback to original if error
+            return course;
+          }
+        })
+      );
+  // Only show active courses
+  setCourses(updatedCourses.filter(c => c.is_active !== false));
     } catch (error) {
       setAlert({ severity: 'error', message: 'Failed to fetch courses' });
     } finally {
@@ -76,7 +272,7 @@ function CourseManagement() {
   const response = await api.post('/courses', newCourse);
       setAlert({ severity: 'success', message: 'Course created successfully' });
       setCreateDialogOpen(false);
-      fetchCourses();
+  fetchCoursesWithCounts();
       setNewCourse({ course_code: '', course_name: '', semester: '' });
     } catch (error) {
       setAlert({ severity: 'error', message: 'Failed to create course' });
@@ -84,15 +280,19 @@ function CourseManagement() {
   };
 
   const handleUploadRoster = async () => {
-    if (!uploadFile || !selectedCourse) return;
+    if (!uploadFile || !selectedCourse || !(selectedCourse.id || selectedCourse._id)) {
+      setAlert({ severity: 'error', message: 'No course selected.' });
+      return;
+    }
 
+    const courseId = selectedCourse.id || selectedCourse._id;
     const formData = new FormData();
     formData.append('file', uploadFile);
 
     try {
       setUploadProgress(25);
       const response = await api.post(
-        `/courses/${selectedCourse.id}/roster`,
+        `/courses/${courseId}/roster`,
         formData,
         {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -104,7 +304,6 @@ function CourseManagement() {
           }
         }
       );
-      
       setAlert({ 
         severity: 'success', 
         message: `${response.data.students.length} students added successfully` 
@@ -112,7 +311,7 @@ function CourseManagement() {
       setUploadDialogOpen(false);
       setUploadFile(null);
       setUploadProgress(0);
-      fetchCourses();
+  fetchCoursesWithCounts();
     } catch (error) {
       setAlert({ severity: 'error', message: 'Failed to upload roster' });
       setUploadProgress(0);
@@ -190,7 +389,7 @@ function CourseManagement() {
                 </TableRow>
               ) : (
                 courses.map((course) => (
-                  <TableRow key={course.id}>
+                  <TableRow key={course.id || course._id}>
                     <TableCell>{course.course_code}</TableCell>
                     <TableCell>{course.course_name}</TableCell>
                     <TableCell>{course.semester}</TableCell>
@@ -209,6 +408,7 @@ function CourseManagement() {
                     </TableCell>
                     <TableCell align="center">
                       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                        {/* ...other action buttons... */}
                         <IconButton
                           size="small"
                           color="primary"
@@ -220,6 +420,63 @@ function CourseManagement() {
                         >
                           <UploadIcon />
                         </IconButton>
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => handleViewStudents(course)}
+                          title="Manage Students"
+                        >
+                          <PersonIcon />
+                        </IconButton>
+      {/* Manage Students Dialog */}
+      <Dialog open={studentsDialogOpen} onClose={() => setStudentsDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Manage Students for {studentsCourse?.course_code} - {studentsCourse?.course_name}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+            <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={() => setAddStudentOpen(true)}>
+              Add Student
+            </Button>
+          </Box>
+          {studentsLoading ? (
+            <LinearProgress />
+          ) : students.length === 0 ? (
+            <Typography>No students found for this course.</Typography>
+          ) : (
+            <TableContainer component={Paper} sx={{ mt: 2 }}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Student ID</TableCell>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {students.map((student) => (
+                    <TableRow key={student.id || student._id}>
+                      <TableCell>{student.student_id}</TableCell>
+                      <TableCell>{student.name}</TableCell>
+                      <TableCell>{student.email}</TableCell>
+                      <TableCell align="center">
+                        <IconButton size="small" color="primary" onClick={() => handleEditStudent(student)} title="Edit Student">
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton size="small" color="error" onClick={() => handleDeleteStudent(student)} title="Delete Student">
+                          <DeleteIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStudentsDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
                         <IconButton
                           size="small"
                           color="primary"
@@ -244,6 +501,25 @@ function CourseManagement() {
                         >
                           <AssessmentIcon />
                         </IconButton>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => {
+                            setCourseToDelete(course);
+                            setDeleteDialogOpen(true);
+                          }}
+                          title="Delete Course"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => handleEditClick(course)}
+                          title="Edit Course"
+                        >
+                          <EditIcon />
+                        </IconButton>
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -258,28 +534,31 @@ function CourseManagement() {
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Create New Course</DialogTitle>
         <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12}>
+          <Grid container columns={12} columnSpacing={2} sx={{ mt: 1 }}>
+            <Grid sx={{ width: '100%' }}>
               <TextField
                 fullWidth
+                variant="outlined"
                 label="Course Code"
                 value={newCourse.course_code}
                 onChange={(e) => setNewCourse({ ...newCourse, course_code: e.target.value })}
                 placeholder="CS 4850"
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid sx={{ width: '100%' }}>
               <TextField
                 fullWidth
+                variant="outlined"
                 label="Course Name"
                 value={newCourse.course_name}
                 onChange={(e) => setNewCourse({ ...newCourse, course_name: e.target.value })}
                 placeholder="Software Engineering"
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid sx={{ width: '100%' }}>
               <TextField
                 fullWidth
+                variant="outlined"
                 label="Semester"
                 value={newCourse.semester}
                 onChange={(e) => setNewCourse({ ...newCourse, semester: e.target.value })}
@@ -300,7 +579,74 @@ function CourseManagement() {
         </DialogActions>
       </Dialog>
 
-      {/* Upload Roster Dialog */}
+  {/* Upload Roster Dialog */}
+
+      {/* Edit Course Dialog */}
+  <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Course</DialogTitle>
+        <DialogContent>
+          <Grid container columns={12} columnSpacing={2} sx={{ mt: 1 }}>
+            <Grid sx={{ width: '100%' }}>
+              <TextField
+                fullWidth
+                variant="outlined"
+                label="Course Code"
+                value={editCourse.course_code}
+                onChange={(e) => setEditCourse({ ...editCourse, course_code: e.target.value })}
+                placeholder="CS 4850"
+                autoComplete="off"
+                autoFocus
+                margin="normal"
+              />
+            </Grid>
+            <Grid sx={{ width: '100%' }}>
+              <TextField
+                fullWidth
+                variant="outlined"
+                label="Course Name"
+                value={editCourse.course_name}
+                onChange={(e) => setEditCourse({ ...editCourse, course_name: e.target.value })}
+                placeholder="Software Engineering"
+                autoComplete="off"
+                margin="normal"
+              />
+            </Grid>
+            <Grid sx={{ width: '100%' }}>
+              <TextField
+                fullWidth
+                variant="outlined"
+                label="Semester"
+                value={editCourse.semester}
+                onChange={(e) => setEditCourse({ ...editCourse, semester: e.target.value })}
+                placeholder="Fall 2025"
+                autoComplete="off"
+                margin="normal"
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleEditCourse} 
+            variant="contained"
+            disabled={!editCourse.course_code || !editCourse.course_name || !editCourse.semester}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* Delete Course Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Course</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete this course?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleDeleteCourse} color="error" variant="contained">Delete</Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={uploadDialogOpen} onClose={() => setUploadDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Upload Student Roster</DialogTitle>
         <DialogContent>

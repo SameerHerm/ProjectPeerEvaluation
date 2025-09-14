@@ -49,10 +49,11 @@ function LoginPage() {
         // Handle login response from backend
         const { access_token, professor } = res.data;
         if (access_token) {
-          localStorage.setItem('token', access_token);
+          // Store token in localStorage (persistent) or sessionStorage (if you add a 'remember me' option)
+          localStorage.setItem('peer_eval_token', access_token);
         }
         login(professor);
-  navigate('/course-management');
+        navigate('/course-management');
       }
     } catch (err) {
       if (err.response && err.response.data && err.response.data.message) {
