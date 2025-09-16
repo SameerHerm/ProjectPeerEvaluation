@@ -43,10 +43,16 @@ function CourseManagement() {
   const [editStudentOpen, setEditStudentOpen] = useState(false);
   const [studentToEdit, setStudentToEdit] = useState(null);
   const [studentForm, setStudentForm] = useState({ student_id: '', name: '', email: '' });
+  const [studentFormError, setStudentFormError] = useState('');
 
   // Handler stubs for add, edit, delete
   const handleAddStudent = async () => {
+    setStudentFormError('');
     if (!studentsCourse) return;
+    if (!studentForm.student_id || !studentForm.name || !studentForm.email) {
+      setStudentFormError('All fields are required.');
+      return;
+    }
     try {
       await api.post(`/courses/${studentsCourse._id || studentsCourse.id}/students`, studentForm);
       setAlert({ severity: 'success', message: 'Student added successfully' });
@@ -56,7 +62,11 @@ function CourseManagement() {
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
       setStudents(response.data);
     } catch (error) {
-      setAlert({ severity: 'error', message: 'Failed to add student' });
+      if (error.response && error.response.data && error.response.data.error && error.response.data.error.message) {
+        setStudentFormError(error.response.data.error.message);
+      } else {
+        setStudentFormError('Failed to add student.');
+      }
     }
   };
 
@@ -94,69 +104,83 @@ function CourseManagement() {
       setAlert({ severity: 'error', message: 'Failed to delete student' });
     }
   };
-      {/* Add Student Dialog */}
-      <Dialog open={addStudentOpen} onClose={() => setAddStudentOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Add Student</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Student ID"
-            value={studentForm.student_id}
-            onChange={e => setStudentForm({ ...studentForm, student_id: e.target.value })}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Name"
-            value={studentForm.name}
-            onChange={e => setStudentForm({ ...studentForm, name: e.target.value })}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Email"
-            value={studentForm.email}
-            onChange={e => setStudentForm({ ...studentForm, email: e.target.value })}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddStudentOpen(false)}>Cancel</Button>
-          <Button onClick={handleAddStudent} variant="contained" disabled={!studentForm.student_id || !studentForm.name || !studentForm.email}>Add</Button>
-        </DialogActions>
-      </Dialog>
+// ...existing code...
 
-      {/* Edit Student Dialog */}
-      <Dialog open={editStudentOpen} onClose={() => setEditStudentOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Edit Student</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Student ID"
-            value={studentForm.student_id}
-            onChange={e => setStudentForm({ ...studentForm, student_id: e.target.value })}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Name"
-            value={studentForm.name}
-            onChange={e => setStudentForm({ ...studentForm, name: e.target.value })}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Email"
-            value={studentForm.email}
-            onChange={e => setStudentForm({ ...studentForm, email: e.target.value })}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditStudentOpen(false)}>Cancel</Button>
-          <Button onClick={handleUpdateStudent} variant="contained" disabled={!studentForm.student_id || !studentForm.name || !studentForm.email}>Save</Button>
-        </DialogActions>
-      </Dialog>
+  // Add Student Dialog (moved to top-level)
+  const addStudentDialog = (
+    <Dialog open={addStudentOpen} onClose={() => { setAddStudentOpen(false); setStudentFormError(''); }} maxWidth="xs" fullWidth>
+      <DialogTitle>Add Student</DialogTitle>
+      <DialogContent>
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Student ID"
+          value={studentForm.student_id}
+          onChange={e => setStudentForm({ ...studentForm, student_id: e.target.value })}
+          error={!!studentFormError && !studentForm.student_id}
+        />
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Name"
+          value={studentForm.name}
+          onChange={e => setStudentForm({ ...studentForm, name: e.target.value })}
+          error={!!studentFormError && !studentForm.name}
+        />
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Email"
+          value={studentForm.email}
+          onChange={e => setStudentForm({ ...studentForm, email: e.target.value })}
+          error={!!studentFormError && !studentForm.email}
+        />
+        {studentFormError && (
+          <Typography color="error" variant="body2" sx={{ mt: 1 }}>{studentFormError}</Typography>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => { setAddStudentOpen(false); setStudentFormError(''); }}>Cancel</Button>
+        <Button onClick={handleAddStudent} variant="contained">Add</Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  // Edit Student Dialog (moved to top-level)
+  const editStudentDialog = (
+    <Dialog open={editStudentOpen} onClose={() => setEditStudentOpen(false)} maxWidth="xs" fullWidth>
+      <DialogTitle>Edit Student</DialogTitle>
+      <DialogContent>
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Student ID"
+          value={studentForm.student_id}
+          onChange={e => setStudentForm({ ...studentForm, student_id: e.target.value })}
+        />
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Name"
+          value={studentForm.name}
+          onChange={e => setStudentForm({ ...studentForm, name: e.target.value })}
+        />
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Email"
+          value={studentForm.email}
+          onChange={e => setStudentForm({ ...studentForm, email: e.target.value })}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setEditStudentOpen(false)}>Cancel</Button>
+        <Button onClick={handleUpdateStudent} variant="contained" disabled={!studentForm.student_id || !studentForm.name || !studentForm.email}>Save</Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+// ...existing code...
   const [studentsDialogOpen, setStudentsDialogOpen] = useState(false);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [students, setStudents] = useState([]);
@@ -337,6 +361,8 @@ function CourseManagement() {
 
   return (
     <div className={styles.courseManagementContainer}>
+      {addStudentDialog}
+      {editStudentDialog}
       <Box display="flex" justifyContent="flex-end" mb={2}>
         <Button variant="outlined" className={styles.logoutButton} color="secondary" onClick={handleLogout}>
           Logout
@@ -429,7 +455,7 @@ function CourseManagement() {
                           <PersonIcon />
                         </IconButton>
       {/* Manage Students Dialog */}
-      <Dialog open={studentsDialogOpen} onClose={() => setStudentsDialogOpen(false)} maxWidth="md" fullWidth>
+  <Dialog open={studentsDialogOpen} onClose={() => { setStudentsDialogOpen(false); fetchCoursesWithCounts(); }} maxWidth="md" fullWidth>
         <DialogTitle>Manage Students for {studentsCourse?.course_code} - {studentsCourse?.course_name}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
@@ -474,7 +500,7 @@ function CourseManagement() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setStudentsDialogOpen(false)}>Close</Button>
+          <Button onClick={() => { setStudentsDialogOpen(false); fetchCoursesWithCounts(); }}>Close</Button>
         </DialogActions>
       </Dialog>
                         <IconButton

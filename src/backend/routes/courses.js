@@ -17,6 +17,7 @@ router.get('/:course_id', authenticateToken, courseController.getCourse);
 router.put('/:course_id', authenticateToken, courseController.updateCourse);
 router.delete('/:course_id', authenticateToken, courseController.deleteCourse);
 
+
 // Student roster endpoints (subroutes)
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
@@ -25,6 +26,7 @@ router.post('/:course_id/roster', (req, res, next) => {
 	next();
 }, authenticateToken, upload.single('file'), studentController.uploadRoster);
 router.get('/:course_id/students', authenticateToken, studentController.listStudents);
+router.post('/:course_id/students', authenticateToken, studentController.addStudent); // Manual add
 router.put('/:course_id/students/:student_id', authenticateToken, studentController.updateStudent);
 router.delete('/:course_id/students/:student_id', authenticateToken, studentController.deleteStudent);
 router.post('/:course_id/students/bulk-delete', authenticateToken, studentController.bulkDeleteStudents);

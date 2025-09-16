@@ -1,3 +1,44 @@
+// Manual add student to course
+exports.addStudent = async (req, res, next) => {
+  try {
+    const { course_id } = req.params;
+    const { student_id, name, email } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(course_id)) {
+      const err = new Error('Invalid course ID.');
+      err.code = 'VALIDATION_ERROR';
+      err.status = 400;
+      return next(err);
+    }
+    if (!student_id || !name || !email) {
+      const err = new Error('Missing required fields: student_id, name, email.');
+      err.code = 'VALIDATION_ERROR';
+      err.status = 400;
+      return next(err);
+    }
+    // Check for duplicate student_id in this course
+    const existing = await Student.findOne({ course_id, student_id });
+    if (existing) {
+      const err = new Error('Student with this ID already exists in this course.');
+      err.code = 'DUPLICATE';
+      err.status = 409;
+      return next(err);
+    }
+    // Generate evaluation token
+    const evaluation_token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const student = new Student({ student_id, name, email, course_id, evaluation_token });
+    await student.save();
+    // Update student_count in the Course document
+    const Course = require('../models/Course');
+    const courseObjectId = new mongoose.Types.ObjectId(course_id);
+    const studentCount = await Student.countDocuments({ course_id: courseObjectId });
+    await Course.findByIdAndUpdate(courseObjectId, { student_count: studentCount });
+    res.status(201).json({ message: 'Student added.', student });
+  } catch (err) {
+    err.code = err.code || 'SERVER_ERROR';
+    err.status = err.status || 500;
+    next(err);
+  }
+};
 const mongoose = require('mongoose');
 const Student = require('../models/Student');
 
