@@ -97,8 +97,8 @@ AI features are optional and will depend on remaining timeline after core milest
 | Team Leader         | Preston Jordan  | Documentation, repository creation, project coordination               
 | Team Member         | Linh La         | Back-end development                                                   
 | Team Member         | Sameer Khan     | Front-end development, Google Site creation, repository creation       
-| Team Member         | Nnedi Okafor    | Back-end development                                                   
-| Team Member         | Deangela Saad   | Front-end development                                                  
+| Team Member         | Nnedi Okafor    | Front-end development                                                   
+| Team Member         | Deangela Saad   | Back-end development                                                  
 | Advisor/Instructor  | Jack Zheng      | Facilitate progress; advise on planning and project management         
 
 Primary contact for inquiries: Team Leader (Preston Jordan)
