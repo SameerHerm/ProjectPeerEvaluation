@@ -160,6 +160,47 @@ Documentation will specify:
 
 ---
 
+## Lower-Level Tasks 
+
+- Professor logs into the system and creates a new course. 
+   - Professor can update course information 
+   - Professor can delete course information 
+- Professor uploads student roster csv files that include students' names and emails.  
+   - Professor can add students to courses manually 
+   - Professor can edit student information 
+   - Professor can delete student information
+- Professor creates teams
+   - Professor can add students to teams
+   - Professor can delete students from teams
+   - Professor can edit teams’ information
+   - Professor can delete teams’ information
+- Professor selects course and sends evaluation rubric 
+- Evaluation Link Generation 
+  - System automatically generates unique, secure evaluation links for each student. 
+  - Links are personalized based on team membership. 
+- Email Distribution 
+  - Integrated email service sends:  
+  - Initial invitations with evaluation links. 
+  - Automated reminders to non-respondents. 
+  - Emails are personalized and tracked for delivery status. 
+-  Peer Evaluation Submission 
+  - Students access web-based forms via their unique links. 
+  - Forms include structured questions for teammate evaluation based on the rubric. 
+  - Submissions are encrypted and stored securely. 
+- Feedback Aggregation and Scoring 
+  - System aggregates and evaluates feedback. 
+  - System calculates grades using preset formulas. 
+- Optional AI Analysis 
+  - AI module generates:  
+  - Summarized feedback per student/team. 
+  - Alerts for potential red flags (e.g., low scores, concerning comments). 
+- Report Access for Professors 
+  - Professor can:  
+  - View reports online or download them. 
+  - Choose between raw data, calculated scores, and AI summaries. 
+  - Filter by team, student, or evaluation round. 
+  - AI module tested and optional for use 
+
 ## Security & Privacy
 
 - Store student data securely; restrict access to authorized users only.  
