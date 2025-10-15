@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import {
   Grid,
@@ -20,7 +20,14 @@ import {
   Chip,
   Alert,
   Box,
-  LinearProgress
+  LinearProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Card,
+  CardContent,
+  Collapse
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -31,6 +38,9 @@ import SendIcon from '@mui/icons-material/Send';
 import GroupIcon from '@mui/icons-material/Group';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import PersonIcon from '@mui/icons-material/Person';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import { useNavigate } from 'react-router-dom';
 import api, { getCourseById } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,22 +52,29 @@ function CourseManagement() {
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [editStudentOpen, setEditStudentOpen] = useState(false);
   const [studentToEdit, setStudentToEdit] = useState(null);
-  const [studentForm, setStudentForm] = useState({ student_id: '', name: '', email: '' });
+  const [studentForm, setStudentForm] = useState({ student_id: '', name: '', email: '', group_assignment: '' });
   const [studentFormError, setStudentFormError] = useState('');
+
+  // State for CSV upload
+  const [csvUploadOpen, setCsvUploadOpen] = useState(false);
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvUploading, setCsvUploading] = useState(false);
+  const [csvUploadError, setCsvUploadError] = useState('');
+  const [csvUploadResults, setCsvUploadResults] = useState(null);
 
   // Handler stubs for add, edit, delete
   const handleAddStudent = async () => {
     setStudentFormError('');
     if (!studentsCourse) return;
     if (!studentForm.student_id || !studentForm.name || !studentForm.email) {
-      setStudentFormError('All fields are required.');
+      setStudentFormError('Student ID, name, and email are required.');
       return;
     }
     try {
       await api.post(`/courses/${studentsCourse._id || studentsCourse.id}/students`, studentForm);
       setAlert({ severity: 'success', message: 'Student added successfully' });
       setAddStudentOpen(false);
-      setStudentForm({ student_id: '', name: '', email: '' });
+      setStudentForm({ student_id: '', name: '', email: '', group_assignment: '' });
       // Refresh students list
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
       setStudents(response.data);
@@ -72,7 +89,12 @@ function CourseManagement() {
 
   const handleEditStudent = (student) => {
     setStudentToEdit(student);
-    setStudentForm({ student_id: student.student_id, name: student.name, email: student.email });
+    setStudentForm({ 
+      student_id: student.student_id, 
+      name: student.name, 
+      email: student.email,
+      group_assignment: student.group_assignment || ''
+    });
     setEditStudentOpen(true);
   };
 
@@ -83,7 +105,7 @@ function CourseManagement() {
       setAlert({ severity: 'success', message: 'Student updated successfully' });
       setEditStudentOpen(false);
       setStudentToEdit(null);
-      setStudentForm({ student_id: '', name: '', email: '' });
+      setStudentForm({ student_id: '', name: '', email: '', group_assignment: '' });
       // Refresh students list
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
       setStudents(response.data);
@@ -102,6 +124,54 @@ function CourseManagement() {
       setStudents(response.data);
     } catch (error) {
       setAlert({ severity: 'error', message: 'Failed to delete student' });
+    }
+  };
+
+  // CSV Upload handlers
+  const handleCsvUpload = async () => {
+    if (!csvFile || !studentsCourse) return;
+    
+    setCsvUploading(true);
+    setCsvUploadError('');
+    setCsvUploadResults(null);
+    
+    const formData = new FormData();
+    formData.append('file', csvFile);
+    
+    try {
+      const response = await api.post(`/courses/${studentsCourse._id || studentsCourse.id}/roster`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      setCsvUploadResults(response.data);
+      setAlert({ severity: 'success', message: response.data.message });
+      
+      // Refresh students list
+      const studentsResponse = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
+      setStudents(studentsResponse.data);
+      
+      // Reset form
+      setCsvFile(null);
+      
+    } catch (error) {
+      const errorMessage = error.response?.data?.error?.message || 'Failed to upload CSV file';
+      setCsvUploadError(errorMessage);
+      setAlert({ severity: 'error', message: errorMessage });
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
+  const handleCsvFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === 'text/csv') {
+      setCsvFile(file);
+      setCsvUploadError('');
+    } else {
+      setCsvUploadError('Please select a valid CSV file');
+      setCsvFile(null);
     }
   };
 // ...existing code...
@@ -134,6 +204,14 @@ function CourseManagement() {
           value={studentForm.email}
           onChange={e => setStudentForm({ ...studentForm, email: e.target.value })}
           error={!!studentFormError && !studentForm.email}
+        />
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Group Assignment (Optional)"
+          value={studentForm.group_assignment}
+          onChange={e => setStudentForm({ ...studentForm, group_assignment: e.target.value })}
+          helperText="Enter group name or identifier for this student"
         />
         {studentFormError && (
           <Typography color="error" variant="body2" sx={{ mt: 1 }}>{studentFormError}</Typography>
@@ -172,10 +250,105 @@ function CourseManagement() {
           value={studentForm.email}
           onChange={e => setStudentForm({ ...studentForm, email: e.target.value })}
         />
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Group Assignment (Optional)"
+          value={studentForm.group_assignment}
+          onChange={e => setStudentForm({ ...studentForm, group_assignment: e.target.value })}
+          helperText="Enter group name or identifier for this student"
+        />
       </DialogContent>
       <DialogActions>
         <Button onClick={() => setEditStudentOpen(false)}>Cancel</Button>
         <Button onClick={handleUpdateStudent} variant="contained" disabled={!studentForm.student_id || !studentForm.name || !studentForm.email}>Save</Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  // CSV Upload Dialog
+  const csvUploadDialog = (
+    <Dialog open={csvUploadOpen} onClose={() => { setCsvUploadOpen(false); setCsvUploadError(''); setCsvUploadResults(null); }} maxWidth="sm" fullWidth>
+      <DialogTitle>Upload Student Roster (CSV)</DialogTitle>
+      <DialogContent>
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Upload a CSV file with the following columns:
+          </Typography>
+          <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+            <li><strong>student_id</strong> - Student ID (required)</li>
+            <li><strong>name</strong> - Student Name (required)</li>
+            <li><strong>email</strong> - Student Email (required)</li>
+            <li><strong>group_assignment</strong> - Group Assignment (optional)</li>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Note: You can also use 'group' instead of 'group_assignment' for the group column.
+          </Typography>
+        </Box>
+        
+        <Box sx={{ mb: 2 }}>
+          <input
+            accept=".csv"
+            style={{ display: 'none' }}
+            id="csv-file-input"
+            type="file"
+            onChange={handleCsvFileChange}
+          />
+          <label htmlFor="csv-file-input">
+            <Button variant="outlined" component="span" startIcon={<UploadIcon />}>
+              Choose CSV File
+            </Button>
+          </label>
+          {csvFile && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Selected: {csvFile.name}
+            </Typography>
+          )}
+        </Box>
+
+        {csvUploadError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {csvUploadError}
+          </Alert>
+        )}
+
+        {csvUploadResults && (
+          <Alert severity={csvUploadResults.errors && csvUploadResults.errors.length > 0 ? "warning" : "success"} sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              {csvUploadResults.message}
+            </Typography>
+            {csvUploadResults.students && csvUploadResults.students.length > 0 && (
+              <Typography variant="body2">
+                Students added: {csvUploadResults.students.length}
+              </Typography>
+            )}
+            {csvUploadResults.errors && csvUploadResults.errors.length > 0 && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2" color="error">Errors:</Typography>
+                {csvUploadResults.errors.map((error, index) => (
+                  <Typography key={index} variant="body2" color="error" sx={{ fontSize: '0.8rem' }}>
+                    • {error}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+          </Alert>
+        )}
+
+        {csvUploading && <LinearProgress sx={{ mb: 2 }} />}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => { setCsvUploadOpen(false); setCsvUploadError(''); setCsvUploadResults(null); }}>
+          Close
+        </Button>
+        <Button 
+          onClick={handleCsvUpload} 
+          variant="contained" 
+          disabled={!csvFile || csvUploading}
+          startIcon={<UploadIcon />}
+        >
+          {csvUploading ? 'Uploading...' : 'Upload'}
+        </Button>
       </DialogActions>
     </Dialog>
   );
@@ -201,14 +374,22 @@ function CourseManagement() {
   };
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [courseToEdit, setCourseToEdit] = useState(null);
-  const [editCourse, setEditCourse] = useState({ course_code: '', course_name: '', semester: '' });
+  const [editCourse, setEditCourse] = useState({ 
+    course_name: '', 
+    course_number: '', 
+    course_section: '', 
+    semester: '',
+    course_status: 'Active'
+  });
 
   const handleEditClick = (course) => {
     setCourseToEdit(course);
     setEditCourse({
-      course_code: course.course_code,
       course_name: course.course_name,
-      semester: course.semester
+      course_number: course.course_number,
+      course_section: course.course_section,
+      semester: course.semester,
+      course_status: course.course_status || 'Active'
     });
     setEditDialogOpen(true);
   };
@@ -248,26 +429,44 @@ function CourseManagement() {
   };
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [newCourse, setNewCourse] = useState({
-    course_code: '',
     course_name: '',
-    semester: ''
+    course_number: '',
+    course_section: '',
+    semester: '',
+    course_status: 'Active'
   });
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [alert, setAlert] = useState(null);
 
-
-  useEffect(() => {
-    fetchCoursesWithCounts();
-  }, []);
-
+  // Search filter state
+  const [searchFilters, setSearchFilters] = useState({
+    course_name: '',
+    course_number: '',
+    course_section: '',
+    semester: '',
+    course_status: 'Active'
+  });
+  const [showSearchFilters, setShowSearchFilters] = useState(false);
 
   // Fetch all courses, then update each with the latest student_count
-  const fetchCoursesWithCounts = async () => {
+  const fetchCoursesWithCounts = useCallback(async (filters = null) => {
     setLoading(true);
     try {
-      const response = await api.get('/courses');
+      // Use provided filters or current search filters
+      const activeFilters = filters || searchFilters;
+      
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+      Object.entries(activeFilters).forEach(([key, value]) => {
+        if (value && value.trim()) {
+          queryParams.append(key, value.trim());
+        }
+      });
+      
+      const response = await api.get(`/courses?${queryParams.toString()}`);
       let coursesList = response.data;
+      
       // Fetch the latest course object for each course in parallel
       const updatedCourses = await Promise.all(
         coursesList.map(async (course) => {
@@ -281,13 +480,34 @@ function CourseManagement() {
           }
         })
       );
-  // Only show active courses
-  setCourses(updatedCourses.filter(c => c.is_active !== false));
+      
+      setCourses(updatedCourses);
     } catch (error) {
       setAlert({ severity: 'error', message: 'Failed to fetch courses' });
     } finally {
       setLoading(false);
     }
+  }, [searchFilters]);
+
+  useEffect(() => {
+    fetchCoursesWithCounts();
+  }, [fetchCoursesWithCounts]); // Re-fetch when fetchCoursesWithCounts changes
+
+  // Search handlers
+  const handleSearch = () => {
+    fetchCoursesWithCounts(searchFilters);
+  };
+
+  const handleClearSearch = () => {
+    const clearedFilters = {
+      course_name: '',
+      course_number: '',
+      course_section: '',
+      semester: '',
+      course_status: 'Active'
+    };
+    setSearchFilters(clearedFilters);
+    fetchCoursesWithCounts(clearedFilters);
   };
 
   const handleCreateCourse = async () => {
@@ -297,7 +517,12 @@ function CourseManagement() {
       setAlert({ severity: 'success', message: 'Course created successfully' });
       setCreateDialogOpen(false);
   fetchCoursesWithCounts();
-      setNewCourse({ course_code: '', course_name: '', semester: '' });
+      setNewCourse({ 
+        course_name: '', 
+        course_number: '', 
+        course_section: '', 
+        semester: '' 
+      });
     } catch (error) {
       setAlert({ severity: 'error', message: 'Failed to create course' });
     }
@@ -363,6 +588,7 @@ function CourseManagement() {
     <div className={styles.courseManagementContainer}>
       {addStudentDialog}
       {editStudentDialog}
+      {csvUploadDialog}
       <Box display="flex" justifyContent="flex-end" mb={2}>
         <Button variant="outlined" className={styles.logoutButton} color="secondary" onClick={handleLogout}>
           Logout
@@ -381,6 +607,97 @@ function CourseManagement() {
           Create Course
         </Button>
       </div>
+      
+      {/* Search Filters */}
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="h6" component="h2">
+              Search Courses
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<FilterListIcon />}
+              onClick={() => setShowSearchFilters(!showSearchFilters)}
+            >
+              {showSearchFilters ? 'Hide Filters' : 'Show Filters'}
+            </Button>
+          </Box>
+          
+          <Collapse in={showSearchFilters}>
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid item xs={12} sm={6} md={2.4}>
+                <TextField
+                  fullWidth
+                  label="Course Name"
+                  value={searchFilters.course_name}
+                  onChange={(e) => setSearchFilters({ ...searchFilters, course_name: e.target.value })}
+                  placeholder="Software Engineering"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                <TextField
+                  fullWidth
+                  label="Course Number"
+                  value={searchFilters.course_number}
+                  onChange={(e) => setSearchFilters({ ...searchFilters, course_number: e.target.value })}
+                  placeholder="CS 4850"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                <TextField
+                  fullWidth
+                  label="Course Section"
+                  value={searchFilters.course_section}
+                  onChange={(e) => setSearchFilters({ ...searchFilters, course_section: e.target.value })}
+                  placeholder="01"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                <TextField
+                  fullWidth
+                  label="Semester"
+                  value={searchFilters.semester}
+                  onChange={(e) => setSearchFilters({ ...searchFilters, semester: e.target.value })}
+                  placeholder="Fall 2025"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2.4}>
+                <FormControl fullWidth>
+                  <InputLabel>Course Status</InputLabel>
+                  <Select
+                    value={searchFilters.course_status}
+                    label="Course Status"
+                    onChange={(e) => setSearchFilters({ ...searchFilters, course_status: e.target.value })}
+                  >
+                    <MenuItem value="Active">Active</MenuItem>
+                    <MenuItem value="Inactive">Inactive</MenuItem>
+                    <MenuItem value="">All</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+            
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="contained"
+                startIcon={<SearchIcon />}
+                onClick={handleSearch}
+              >
+                Search
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<ClearIcon />}
+                onClick={handleClearSearch}
+              >
+                Clear
+              </Button>
+            </Box>
+          </Collapse>
+        </CardContent>
+      </Card>
+
       {alert && (
         <Alert severity={alert.severity} className={styles.alert} onClose={() => setAlert(null)}>
           {alert.message}
@@ -391,8 +708,9 @@ function CourseManagement() {
           <Table style={{ width: '100%' }}>
             <TableHead>
               <TableRow>
-                <TableCell>Course Code</TableCell>
                 <TableCell>Course Name</TableCell>
+                <TableCell>Course Number</TableCell>
+                <TableCell>Course Section</TableCell>
                 <TableCell>Semester</TableCell>
                 <TableCell align="center">Students</TableCell>
                 <TableCell align="center">Teams</TableCell>
@@ -403,32 +721,33 @@ function CourseManagement() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     <LinearProgress />
                   </TableCell>
                 </TableRow>
               ) : courses.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     No courses found. Create your first course to get started.
                   </TableCell>
                 </TableRow>
               ) : (
                 courses.map((course) => (
                   <TableRow key={course.id || course._id}>
-                    <TableCell>{course.course_code}</TableCell>
                     <TableCell>{course.course_name}</TableCell>
+                    <TableCell>{course.course_number}</TableCell>
+                    <TableCell>{course.course_section}</TableCell>
                     <TableCell>{course.semester}</TableCell>
                     <TableCell align="center">
-                      <Chip label={course.student_count} size="small" />
+                      <Chip label={course.student_count || 0} size="small" />
                     </TableCell>
                     <TableCell align="center">
-                      <Chip label={course.team_count} size="small" />
+                      <Chip label={course.team_count || 0} size="small" />
                     </TableCell>
                     <TableCell align="center">
                       <Chip 
-                        label="Active" 
-                        color="success" 
+                        label={course.course_status || 'Active'} 
+                        color={course.course_status === 'Active' ? 'success' : 'default'}
                         size="small" 
                       />
                     </TableCell>
@@ -456,9 +775,12 @@ function CourseManagement() {
                         </IconButton>
       {/* Manage Students Dialog */}
   <Dialog open={studentsDialogOpen} onClose={() => { setStudentsDialogOpen(false); fetchCoursesWithCounts(); }} maxWidth="md" fullWidth>
-        <DialogTitle>Manage Students for {studentsCourse?.course_code} - {studentsCourse?.course_name}</DialogTitle>
+        <DialogTitle>Manage Students for {studentsCourse?.course_number} {studentsCourse?.course_section} - {studentsCourse?.course_name}</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 2 }}>
+            <Button variant="outlined" size="small" startIcon={<UploadIcon />} onClick={() => setCsvUploadOpen(true)}>
+              Upload CSV
+            </Button>
             <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={() => setAddStudentOpen(true)}>
               Add Student
             </Button>
@@ -475,6 +797,7 @@ function CourseManagement() {
                     <TableCell>Student ID</TableCell>
                     <TableCell>Name</TableCell>
                     <TableCell>Email</TableCell>
+                    <TableCell>Group Assignment</TableCell>
                     <TableCell align="center">Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -484,6 +807,13 @@ function CourseManagement() {
                       <TableCell>{student.student_id}</TableCell>
                       <TableCell>{student.name}</TableCell>
                       <TableCell>{student.email}</TableCell>
+                      <TableCell>
+                        {student.group_assignment ? (
+                          <Chip label={student.group_assignment} size="small" variant="outlined" />
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">Not assigned</Typography>
+                        )}
+                      </TableCell>
                       <TableCell align="center">
                         <IconButton size="small" color="primary" onClick={() => handleEditStudent(student)} title="Edit Student">
                           <EditIcon />
@@ -565,20 +895,34 @@ function CourseManagement() {
               <TextField
                 fullWidth
                 variant="outlined"
-                label="Course Code"
-                value={newCourse.course_code}
-                onChange={(e) => setNewCourse({ ...newCourse, course_code: e.target.value })}
-                placeholder="CS 4850"
+                label="Course Name"
+                value={newCourse.course_name}
+                onChange={(e) => setNewCourse({ ...newCourse, course_name: e.target.value })}
+                placeholder="Software Engineering"
+                autoFocus
+                margin="normal"
               />
             </Grid>
             <Grid sx={{ width: '100%' }}>
               <TextField
                 fullWidth
                 variant="outlined"
-                label="Course Name"
-                value={newCourse.course_name}
-                onChange={(e) => setNewCourse({ ...newCourse, course_name: e.target.value })}
-                placeholder="Software Engineering"
+                label="Course Number"
+                value={newCourse.course_number}
+                onChange={(e) => setNewCourse({ ...newCourse, course_number: e.target.value })}
+                placeholder="CS 4850"
+                margin="normal"
+              />
+            </Grid>
+            <Grid sx={{ width: '100%' }}>
+              <TextField
+                fullWidth
+                variant="outlined"
+                label="Course Section"
+                value={newCourse.course_section}
+                onChange={(e) => setNewCourse({ ...newCourse, course_section: e.target.value })}
+                placeholder="01"
+                margin="normal"
               />
             </Grid>
             <Grid sx={{ width: '100%' }}>
@@ -589,6 +933,7 @@ function CourseManagement() {
                 value={newCourse.semester}
                 onChange={(e) => setNewCourse({ ...newCourse, semester: e.target.value })}
                 placeholder="Fall 2025"
+                margin="normal"
               />
             </Grid>
           </Grid>
@@ -598,7 +943,7 @@ function CourseManagement() {
           <Button 
             onClick={handleCreateCourse} 
             variant="contained"
-            disabled={!newCourse.course_code || !newCourse.course_name || !newCourse.semester}
+            disabled={!newCourse.course_name || !newCourse.course_number || !newCourse.course_section || !newCourse.semester}
           >
             Create
           </Button>
@@ -616,10 +961,10 @@ function CourseManagement() {
               <TextField
                 fullWidth
                 variant="outlined"
-                label="Course Code"
-                value={editCourse.course_code}
-                onChange={(e) => setEditCourse({ ...editCourse, course_code: e.target.value })}
-                placeholder="CS 4850"
+                label="Course Name"
+                value={editCourse.course_name}
+                onChange={(e) => setEditCourse({ ...editCourse, course_name: e.target.value })}
+                placeholder="Software Engineering"
                 autoComplete="off"
                 autoFocus
                 margin="normal"
@@ -629,10 +974,22 @@ function CourseManagement() {
               <TextField
                 fullWidth
                 variant="outlined"
-                label="Course Name"
-                value={editCourse.course_name}
-                onChange={(e) => setEditCourse({ ...editCourse, course_name: e.target.value })}
-                placeholder="Software Engineering"
+                label="Course Number"
+                value={editCourse.course_number}
+                onChange={(e) => setEditCourse({ ...editCourse, course_number: e.target.value })}
+                placeholder="CS 4850"
+                autoComplete="off"
+                margin="normal"
+              />
+            </Grid>
+            <Grid sx={{ width: '100%' }}>
+              <TextField
+                fullWidth
+                variant="outlined"
+                label="Course Section"
+                value={editCourse.course_section}
+                onChange={(e) => setEditCourse({ ...editCourse, course_section: e.target.value })}
+                placeholder="01"
                 autoComplete="off"
                 margin="normal"
               />
@@ -649,6 +1006,19 @@ function CourseManagement() {
                 margin="normal"
               />
             </Grid>
+            <Grid sx={{ width: '100%' }}>
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Course Status</InputLabel>
+                <Select
+                  value={editCourse.course_status}
+                  label="Course Status"
+                  onChange={(e) => setEditCourse({ ...editCourse, course_status: e.target.value })}
+                >
+                  <MenuItem value="Active">Active</MenuItem>
+                  <MenuItem value="Inactive">Inactive</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
@@ -656,7 +1026,7 @@ function CourseManagement() {
           <Button 
             onClick={handleEditCourse} 
             variant="contained"
-            disabled={!editCourse.course_code || !editCourse.course_name || !editCourse.semester}
+            disabled={!editCourse.course_name || !editCourse.course_number || !editCourse.course_section || !editCourse.semester}
           >
             Save
           </Button>

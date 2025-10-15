@@ -1,8 +1,16 @@
+const mongoose = require('mongoose');
+const Student = require('../models/Student');
+const csv = require('csv-parser');
+const multer = require('multer');
+const fs = require('fs');
+
+const upload = multer({ dest: 'uploads/' });
+
 // Manual add student to course
 exports.addStudent = async (req, res, next) => {
   try {
     const { course_id } = req.params;
-    const { student_id, name, email } = req.body;
+    const { student_id, name, email, group_assignment } = req.body;
     if (!mongoose.Types.ObjectId.isValid(course_id)) {
       const err = new Error('Invalid course ID.');
       err.code = 'VALIDATION_ERROR';
@@ -25,7 +33,14 @@ exports.addStudent = async (req, res, next) => {
     }
     // Generate evaluation token
     const evaluation_token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    const student = new Student({ student_id, name, email, course_id, evaluation_token });
+    const student = new Student({ 
+      student_id, 
+      name, 
+      email, 
+      course_id, 
+      group_assignment: group_assignment || null,
+      evaluation_token 
+    });
     await student.save();
     // Update student_count in the Course document
     const Course = require('../models/Course');
@@ -39,8 +54,6 @@ exports.addStudent = async (req, res, next) => {
     next(err);
   }
 };
-const mongoose = require('mongoose');
-const Student = require('../models/Student');
 
 exports.listStudents = async (req, res, next) => {
   try {
@@ -142,13 +155,6 @@ exports.bulkDeleteStudents = async (req, res, next) => {
   }
 };
 
-const csv = require('csv-parser');
-const multer = require('multer');
-const fs = require('fs');
-
-// Multer config (should be in middleware, but for demo, inline)
-const upload = multer({ dest: 'uploads/' });
-
 exports.uploadRoster = async (req, res, next) => {
   console.log('params:', req.params);
   console.log('file:', req.file);
@@ -168,7 +174,7 @@ exports.uploadRoster = async (req, res, next) => {
       .pipe(csv())
       .on('data', (row) => {
         console.log('Parsed row:', row);
-        // Validate required columns
+        // Validate required columns (name, student_id, email are required; group_assignment is optional)
         if (!row.student_id || !row.name || !row.email) {
           errors.push(`Missing required fields in row: ${JSON.stringify(row)}`);
           return;
@@ -179,6 +185,7 @@ exports.uploadRoster = async (req, res, next) => {
           student_id: row.student_id,
           name: row.name,
           email: row.email,
+          group_assignment: row.group_assignment || row.group || null, // Support both 'group_assignment' and 'group' column names
           course_id,
           evaluation_token
         });

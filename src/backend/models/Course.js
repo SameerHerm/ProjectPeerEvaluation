@@ -7,13 +7,14 @@ const EvaluationStatusSchema = new mongoose.Schema({
 }, { _id: false });
 
 const CourseSchema = new mongoose.Schema({
-	course_code: { type: String, required: true, trim: true },
 	course_name: { type: String, required: true, trim: true },
-	semester: { type: String, required: true, trim: true },
+	course_number: { type: String, required: true, trim: true }, // e.g., "CS 4850"
+	course_section: { type: String, required: true, trim: true }, // e.g., "01", "A", "MWF"
+	semester: { type: String, required: true, trim: true }, // e.g., "Fall 2025"
 	professor_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Professor', required: true },
-	student_count: { type: Number, default: 0 },
-	team_count: { type: Number, default: 0 },
-	is_active: { type: Boolean, default: true },
+	student_count: { type: Number, default: 0 }, // System generated
+	team_count: { type: Number, default: 0 }, // System generated  
+	course_status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
 	evaluation_status: { type: EvaluationStatusSchema, default: () => ({}) },
 	created_at: { type: Date, default: Date.now }
 });
