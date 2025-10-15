@@ -445,7 +445,7 @@ function CourseManagement() {
     }
     
     try {
-      const response = await api.delete(`/courses/${teamsCourse._id}/teams/${teamId}`);
+      await api.delete(`/courses/${teamsCourse._id}/teams/${teamId}`);
       setAlert({ severity: 'success', message: `Team "${teamName}" deleted successfully` });
       
       // Remove the deleted team from the local state
@@ -478,7 +478,7 @@ function CourseManagement() {
     }
     
     try {
-      const response = await api.put(`/courses/${teamsCourse._id}/teams/${teamToEdit._id}`, editTeamData);
+      await api.put(`/courses/${teamsCourse._id}/teams/${teamToEdit._id}`, editTeamData);
       setAlert({ severity: 'success', message: `Team "${editTeamData.team_name}" updated successfully` });
       
       // Update the team in the local state
