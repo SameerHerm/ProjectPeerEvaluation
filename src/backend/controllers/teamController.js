@@ -30,6 +30,13 @@ exports.createTeams = async (req, res, next) => {
       return next(err);
     }
     const created = await Team.insertMany(teams.map(t => ({ ...t, course_id })));
+    
+    // Update course team_count
+    const Course = require('../models/Course');
+    const courseObjectId = new mongoose.Types.ObjectId(course_id);
+    const teamCount = await Team.countDocuments({ course_id: courseObjectId });
+    await Course.findByIdAndUpdate(courseObjectId, { team_count: teamCount });
+    
     res.status(201).json({ message: 'Teams created.', teams: created.map(t => t._id) });
   } catch (err) {
     err.code = err.code || 'SERVER_ERROR';
@@ -48,14 +55,34 @@ exports.updateTeam = async (req, res, next) => {
       err.status = 400;
       return next(err);
     }
-    const team = await Team.findOneAndUpdate({ _id: team_id, course_id }, updates, { new: true });
-    if (!team) {
+    
+    // Get the current team before updating
+    const currentTeam = await Team.findOne({ _id: team_id, course_id });
+    if (!currentTeam) {
       const err = new Error('Team not found.');
       err.code = 'NOT_FOUND';
       err.status = 404;
       return next(err);
     }
-    res.status(200).json({ message: 'Team updated.' });
+    
+    const team = await Team.findOneAndUpdate({ _id: team_id, course_id }, updates, { new: true });
+    
+    // If team name was updated, update all students' group_assignment field
+    if (updates.team_name && updates.team_name !== currentTeam.team_name) {
+      const Student = require('../models/Student');
+      await Student.updateMany(
+        { team_id: team_id },
+        { group_assignment: updates.team_name }
+      );
+      console.log(`Updated group_assignment for students from "${currentTeam.team_name}" to "${updates.team_name}"`);
+    }
+    
+    console.log(`Team updated: ${team.team_name} (Status: ${team.team_status})`);
+    
+    res.status(200).json({ 
+      message: `Team "${team.team_name}" updated successfully.`,
+      team: team
+    });
   } catch (err) {
     err.code = err.code || 'SERVER_ERROR';
     err.status = err.status || 500;
@@ -79,8 +106,67 @@ exports.deleteTeam = async (req, res, next) => {
       err.status = 404;
       return next(err);
     }
-    res.status(200).json({ message: 'Team deleted.' });
+    
+    // Unlink all students from this team
+    const Student = require('../models/Student');
+    const updateResult = await Student.updateMany(
+      { team_id: team_id },
+      { $unset: { team_id: "", group_assignment: "" } }
+    );
+    
+    console.log(`Unlinked ${updateResult.modifiedCount} students from deleted team: ${team.team_name}`);
+    
+    // Update course team_count
+    const Course = require('../models/Course');
+    const courseObjectId = new mongoose.Types.ObjectId(course_id);
+    const teamCount = await Team.countDocuments({ course_id: courseObjectId });
+    await Course.findByIdAndUpdate(courseObjectId, { team_count: teamCount });
+    
+    res.status(200).json({ 
+      message: `Team "${team.team_name}" deleted successfully.`,
+      students_unlinked: updateResult.modifiedCount
+    });
   } catch (err) {
+    err.code = err.code || 'SERVER_ERROR';
+    err.status = err.status || 500;
+    next(err);
+  }
+};
+
+exports.clearAllTeams = async (req, res, next) => {
+  try {
+    const { course_id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(course_id)) {
+      const err = new Error('Invalid course ID.');
+      err.code = 'VALIDATION_ERROR';
+      err.status = 400;
+      return next(err);
+    }
+    
+    const courseObjectId = new mongoose.Types.ObjectId(course_id);
+    
+    // Remove all teams for this course
+    const deleteResult = await Team.deleteMany({ course_id: courseObjectId });
+    
+    // Remove team_id and group_assignment from all students in this course
+    const Student = require('../models/Student');
+    await Student.updateMany(
+      { course_id: courseObjectId },
+      { $unset: { team_id: "", group_assignment: "" } }
+    );
+    
+    // Update course team_count to 0
+    const Course = require('../models/Course');
+    await Course.findByIdAndUpdate(courseObjectId, { team_count: 0 });
+    
+    console.log(`Cleared ${deleteResult.deletedCount} teams from course ${course_id}`);
+    
+    res.status(200).json({ 
+      message: `All teams cleared successfully. ${deleteResult.deletedCount} teams deleted.`,
+      teams_deleted: deleteResult.deletedCount
+    });
+  } catch (err) {
+    console.error('Error clearing teams:', err);
     err.code = err.code || 'SERVER_ERROR';
     err.status = err.status || 500;
     next(err);
