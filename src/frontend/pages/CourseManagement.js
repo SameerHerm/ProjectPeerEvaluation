@@ -386,8 +386,8 @@ function CourseManagement() {
     setCourseToEdit(course);
     setEditCourse({
       course_name: course.course_name,
-      course_number: course.course_number,
-      course_section: course.course_section,
+      course_number: course.course_number || course.course_code || '',
+      course_section: course.course_section || '',
       semester: course.semester,
       course_status: course.course_status || 'Active'
     });
@@ -432,8 +432,7 @@ function CourseManagement() {
     course_name: '',
     course_number: '',
     course_section: '',
-    semester: '',
-    course_status: 'Active'
+    semester: ''
   });
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -445,7 +444,7 @@ function CourseManagement() {
     course_number: '',
     course_section: '',
     semester: '',
-    course_status: 'Active'
+    course_status: 'Active' // Back to default Active filter
   });
   const [showSearchFilters, setShowSearchFilters] = useState(false);
 
@@ -512,8 +511,10 @@ function CourseManagement() {
 
   const handleCreateCourse = async () => {
     try {
+      console.log('Creating course with data:', newCourse);
   // eslint-disable-next-line
   const response = await api.post('/courses', newCourse);
+      console.log('Course creation successful:', response);
       setAlert({ severity: 'success', message: 'Course created successfully' });
       setCreateDialogOpen(false);
   fetchCoursesWithCounts();
@@ -524,6 +525,10 @@ function CourseManagement() {
         semester: '' 
       });
     } catch (error) {
+      console.error('Course creation error:', error.response?.data || error.message);
+      console.error('Full error object:', error);
+      console.error('Error response:', error.response);
+      console.error('Error status:', error.response?.status);
       setAlert({ severity: 'error', message: 'Failed to create course' });
     }
   };
@@ -598,14 +603,16 @@ function CourseManagement() {
         <Typography variant="h4" component="h1" className={styles.title}>
           Course Management
         </Typography>
-        <Button
-          variant="contained"
-          className={styles.createButton}
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-        >
-          Create Course
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            className={styles.createButton}
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            Create Course
+          </Button>
+        </Box>
       </div>
       
       {/* Search Filters */}
@@ -625,58 +632,48 @@ function CourseManagement() {
           </Box>
           
           <Collapse in={showSearchFilters}>
-            <Grid container spacing={2} sx={{ mb: 2 }}>
-              <Grid item xs={12} sm={6} md={2.4}>
-                <TextField
-                  fullWidth
-                  label="Course Name"
-                  value={searchFilters.course_name}
-                  onChange={(e) => setSearchFilters({ ...searchFilters, course_name: e.target.value })}
-                  placeholder="Software Engineering"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2.4}>
-                <TextField
-                  fullWidth
-                  label="Course Number"
-                  value={searchFilters.course_number}
-                  onChange={(e) => setSearchFilters({ ...searchFilters, course_number: e.target.value })}
-                  placeholder="CS 4850"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2.4}>
-                <TextField
-                  fullWidth
-                  label="Course Section"
-                  value={searchFilters.course_section}
-                  onChange={(e) => setSearchFilters({ ...searchFilters, course_section: e.target.value })}
-                  placeholder="01"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2.4}>
-                <TextField
-                  fullWidth
-                  label="Semester"
-                  value={searchFilters.semester}
-                  onChange={(e) => setSearchFilters({ ...searchFilters, semester: e.target.value })}
-                  placeholder="Fall 2025"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2.4}>
-                <FormControl fullWidth>
-                  <InputLabel>Course Status</InputLabel>
-                  <Select
-                    value={searchFilters.course_status}
-                    label="Course Status"
-                    onChange={(e) => setSearchFilters({ ...searchFilters, course_status: e.target.value })}
-                  >
-                    <MenuItem value="Active">Active</MenuItem>
-                    <MenuItem value="Inactive">Inactive</MenuItem>
-                    <MenuItem value="">All</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 2 }}>
+              <TextField
+                fullWidth
+                label="Course Name"
+                value={searchFilters.course_name}
+                onChange={(e) => setSearchFilters({ ...searchFilters, course_name: e.target.value })}
+                placeholder="Software Engineering"
+              />
+              <TextField
+                fullWidth
+                label="Course Number"
+                value={searchFilters.course_number}
+                onChange={(e) => setSearchFilters({ ...searchFilters, course_number: e.target.value })}
+                placeholder="CS 4850"
+              />
+              <TextField
+                fullWidth
+                label="Course Section"
+                value={searchFilters.course_section}
+                onChange={(e) => setSearchFilters({ ...searchFilters, course_section: e.target.value })}
+                placeholder="01"
+              />
+              <TextField
+                fullWidth
+                label="Semester"
+                value={searchFilters.semester}
+                onChange={(e) => setSearchFilters({ ...searchFilters, semester: e.target.value })}
+                placeholder="Fall 2025"
+              />
+              <FormControl fullWidth>
+                <InputLabel>Course Status</InputLabel>
+                <Select
+                  value={searchFilters.course_status}
+                  label="Course Status"
+                  onChange={(e) => setSearchFilters({ ...searchFilters, course_status: e.target.value })}
+                >
+                  <MenuItem value="Active">Active</MenuItem>
+                  <MenuItem value="Inactive">Inactive</MenuItem>
+                  <MenuItem value="">All</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
             
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button
@@ -735,8 +732,8 @@ function CourseManagement() {
                 courses.map((course) => (
                   <TableRow key={course.id || course._id}>
                     <TableCell>{course.course_name}</TableCell>
-                    <TableCell>{course.course_number}</TableCell>
-                    <TableCell>{course.course_section}</TableCell>
+                    <TableCell>{course.course_number || course.course_code || 'N/A'}</TableCell>
+                    <TableCell>{course.course_section || 'N/A'}</TableCell>
                     <TableCell>{course.semester}</TableCell>
                     <TableCell align="center">
                       <Chip label={course.student_count || 0} size="small" />
@@ -775,7 +772,7 @@ function CourseManagement() {
                         </IconButton>
       {/* Manage Students Dialog */}
   <Dialog open={studentsDialogOpen} onClose={() => { setStudentsDialogOpen(false); fetchCoursesWithCounts(); }} maxWidth="md" fullWidth>
-        <DialogTitle>Manage Students for {studentsCourse?.course_number} {studentsCourse?.course_section} - {studentsCourse?.course_name}</DialogTitle>
+        <DialogTitle>Manage Students for {studentsCourse?.course_number || studentsCourse?.course_code} {studentsCourse?.course_section || ''} - {studentsCourse?.course_name}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 2 }}>
             <Button variant="outlined" size="small" startIcon={<UploadIcon />} onClick={() => setCsvUploadOpen(true)}>
@@ -890,53 +887,45 @@ function CourseManagement() {
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Create New Course</DialogTitle>
         <DialogContent>
-          <Grid container columns={12} columnSpacing={2} sx={{ mt: 1 }}>
-            <Grid sx={{ width: '100%' }}>
-              <TextField
-                fullWidth
-                variant="outlined"
-                label="Course Name"
-                value={newCourse.course_name}
-                onChange={(e) => setNewCourse({ ...newCourse, course_name: e.target.value })}
-                placeholder="Software Engineering"
-                autoFocus
-                margin="normal"
-              />
-            </Grid>
-            <Grid sx={{ width: '100%' }}>
-              <TextField
-                fullWidth
-                variant="outlined"
-                label="Course Number"
-                value={newCourse.course_number}
-                onChange={(e) => setNewCourse({ ...newCourse, course_number: e.target.value })}
-                placeholder="CS 4850"
-                margin="normal"
-              />
-            </Grid>
-            <Grid sx={{ width: '100%' }}>
-              <TextField
-                fullWidth
-                variant="outlined"
-                label="Course Section"
-                value={newCourse.course_section}
-                onChange={(e) => setNewCourse({ ...newCourse, course_section: e.target.value })}
-                placeholder="01"
-                margin="normal"
-              />
-            </Grid>
-            <Grid sx={{ width: '100%' }}>
-              <TextField
-                fullWidth
-                variant="outlined"
-                label="Semester"
-                value={newCourse.semester}
-                onChange={(e) => setNewCourse({ ...newCourse, semester: e.target.value })}
-                placeholder="Fall 2025"
-                margin="normal"
-              />
-            </Grid>
-          </Grid>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              label="Course Name"
+              value={newCourse.course_name}
+              onChange={(e) => setNewCourse({ ...newCourse, course_name: e.target.value })}
+              placeholder="Software Engineering"
+              autoFocus
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              variant="outlined"
+              label="Course Number"
+              value={newCourse.course_number}
+              onChange={(e) => setNewCourse({ ...newCourse, course_number: e.target.value })}
+              placeholder="CS 4850"
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              variant="outlined"
+              label="Course Section"
+              value={newCourse.course_section}
+              onChange={(e) => setNewCourse({ ...newCourse, course_section: e.target.value })}
+              placeholder="01"
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              variant="outlined"
+              label="Semester"
+              value={newCourse.semester}
+              onChange={(e) => setNewCourse({ ...newCourse, semester: e.target.value })}
+              placeholder="Fall 2025"
+              margin="normal"
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>

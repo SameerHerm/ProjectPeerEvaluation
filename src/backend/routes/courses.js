@@ -13,6 +13,7 @@ const { authenticateToken } = require('../middleware/auth');
 // Course management endpoints
 router.get('/', authenticateToken, courseController.listCourses);
 router.post('/', authenticateToken, courseController.createCourse);
+router.post('/migrate', authenticateToken, courseController.migrateCourses); // Migration endpoint
 router.get('/:course_id', authenticateToken, courseController.getCourse);
 router.put('/:course_id', authenticateToken, courseController.updateCourse);
 router.delete('/:course_id', authenticateToken, courseController.deleteCourse);
