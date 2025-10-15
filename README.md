@@ -57,6 +57,46 @@ AI features are optional and will depend on remaining timeline after core milest
 - Implement optional AI features (summarization, red flag detection)  
 - Present final system and submit all deliverables
 
+---
+
+## Quick Start
+
+### Option 1: One-Command Startup
+```bash
+# Run this single command in the root folder to start everything:
+npm run dev
+```
+
+### Option 2: Use Startup Scripts
+```bash
+# Windows Batch File
+./start.bat
+
+# Windows PowerShell
+./start.ps1
+```
+
+### Option 3: Manual Setup
+```bash
+# Install all dependencies
+npm run setup
+
+# Start backend and frontend separately
+npm run start:backend    # Starts backend server on port 5000
+npm run start:frontend   # Starts frontend server on port 3000
+```
+
+### Available Scripts
+- `npm run dev` - Start both frontend and backend servers simultaneously
+- `npm run setup` - Install dependencies for both frontend and backend
+- `npm run start:backend` - Start only the backend server
+- `npm run start:frontend` - Start only the frontend server (default React scripts)
+
+### Access the Application
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:5000
+
+---
 
 ## Final Deliverables
 

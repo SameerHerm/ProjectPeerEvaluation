@@ -3,11 +3,12 @@ const mongoose = require('mongoose');
 
 const StudentSchema = new mongoose.Schema({
 	student_id: { type: String, required: true, trim: true }, // University ID
-	name: { type: String, required: true, trim: true },
-	email: { type: String, required: true, trim: true, lowercase: true },
+	name: { type: String, required: true, trim: true }, // Student Name
+	email: { type: String, required: true, trim: true, lowercase: true }, // Student Email
 	course_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
-	team_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null },
-	evaluation_token: { type: String, required: true },
+	team_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null }, // Reference to actual Team
+	group_assignment: { type: String, trim: true, default: null }, // Group name from CSV (used to create/find team)
+	evaluation_token: { type: String, required: true }, // Unique token for evaluation links
 	evaluation_completed: { type: Boolean, default: false },
 	created_at: { type: Date, default: Date.now }
 });

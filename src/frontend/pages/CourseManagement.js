@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+
+// Test comment for GitHub upload - Preston
 
 import {
   Grid,
@@ -20,7 +22,14 @@ import {
   Chip,
   Alert,
   Box,
-  LinearProgress
+  LinearProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Card,
+  CardContent,
+  Collapse
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -31,6 +40,10 @@ import SendIcon from '@mui/icons-material/Send';
 import GroupIcon from '@mui/icons-material/Group';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import PersonIcon from '@mui/icons-material/Person';
+import PeopleIcon from '@mui/icons-material/People';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import { useNavigate } from 'react-router-dom';
 import api, { getCourseById } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,25 +55,34 @@ function CourseManagement() {
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [editStudentOpen, setEditStudentOpen] = useState(false);
   const [studentToEdit, setStudentToEdit] = useState(null);
-  const [studentForm, setStudentForm] = useState({ student_id: '', name: '', email: '' });
+  const [studentForm, setStudentForm] = useState({ student_id: '', name: '', email: '', group_assignment: '' });
   const [studentFormError, setStudentFormError] = useState('');
+
+  // State for CSV upload
+  const [csvUploadOpen, setCsvUploadOpen] = useState(false);
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvUploading, setCsvUploading] = useState(false);
+  const [csvUploadError, setCsvUploadError] = useState('');
+  const [csvUploadResults, setCsvUploadResults] = useState(null);
 
   // Handler stubs for add, edit, delete
   const handleAddStudent = async () => {
     setStudentFormError('');
     if (!studentsCourse) return;
     if (!studentForm.student_id || !studentForm.name || !studentForm.email) {
-      setStudentFormError('All fields are required.');
+      setStudentFormError('Student ID, name, and email are required.');
       return;
     }
     try {
       await api.post(`/courses/${studentsCourse._id || studentsCourse.id}/students`, studentForm);
       setAlert({ severity: 'success', message: 'Student added successfully' });
       setAddStudentOpen(false);
-      setStudentForm({ student_id: '', name: '', email: '' });
+      setStudentForm({ student_id: '', name: '', email: '', group_assignment: '' });
       // Refresh students list
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
       setStudents(response.data);
+      // Re-apply current search filters
+      handleStudentSearchChange('student_id', studentSearch.student_id);
     } catch (error) {
       if (error.response && error.response.data && error.response.data.error && error.response.data.error.message) {
         setStudentFormError(error.response.data.error.message);
@@ -72,7 +94,12 @@ function CourseManagement() {
 
   const handleEditStudent = (student) => {
     setStudentToEdit(student);
-    setStudentForm({ student_id: student.student_id, name: student.name, email: student.email });
+    setStudentForm({ 
+      student_id: student.student_id, 
+      name: student.name, 
+      email: student.email,
+      group_assignment: student.group_assignment || ''
+    });
     setEditStudentOpen(true);
   };
 
@@ -83,10 +110,12 @@ function CourseManagement() {
       setAlert({ severity: 'success', message: 'Student updated successfully' });
       setEditStudentOpen(false);
       setStudentToEdit(null);
-      setStudentForm({ student_id: '', name: '', email: '' });
+      setStudentForm({ student_id: '', name: '', email: '', group_assignment: '' });
       // Refresh students list
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
       setStudents(response.data);
+      // Re-apply current search filters
+      handleStudentSearchChange('student_id', studentSearch.student_id);
     } catch (error) {
       setAlert({ severity: 'error', message: 'Failed to update student' });
     }
@@ -94,14 +123,76 @@ function CourseManagement() {
 
   const handleDeleteStudent = async (student) => {
     if (!studentsCourse || !student) return;
+    
+    // Confirmation dialog
+    const studentName = student.name || `Student ${student.student_id}`;
+    const teamInfo = student.group_assignment ? `\nTeam: ${student.group_assignment}` : `\nNot assigned to any team`;
+    const confirmMessage = `Are you sure you want to delete "${studentName}" (ID: ${student.student_id})?${teamInfo}\n\nThis action cannot be undone and will:\n• Remove the student from the course\n• Unlink them from their team (if any)\n• Delete their evaluation data`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+    
     try {
       await api.delete(`/courses/${studentsCourse._id || studentsCourse.id}/students/${student._id || student.id}`);
-      setAlert({ severity: 'success', message: 'Student deleted successfully' });
+      setAlert({ severity: 'success', message: `Student "${studentName}" deleted successfully` });
       // Refresh students list
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
       setStudents(response.data);
+      // Re-apply current search filters
+      handleStudentSearchChange('student_id', studentSearch.student_id);
     } catch (error) {
-      setAlert({ severity: 'error', message: 'Failed to delete student' });
+      setAlert({ severity: 'error', message: `Failed to delete student "${studentName}"` });
+    }
+  };
+
+  // CSV Upload handlers
+  const handleCsvUpload = async () => {
+    if (!csvFile || !studentsCourse) return;
+    
+    setCsvUploading(true);
+    setCsvUploadError('');
+    setCsvUploadResults(null);
+    
+    const formData = new FormData();
+    formData.append('file', csvFile);
+    
+    try {
+      const response = await api.post(`/courses/${studentsCourse._id || studentsCourse.id}/roster`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      setCsvUploadResults(response.data);
+      setAlert({ severity: 'success', message: response.data.message });
+      
+      // Refresh students list
+      const studentsResponse = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
+      setStudents(studentsResponse.data);
+      // Re-apply current search filters
+      handleStudentSearchChange('student_id', studentSearch.student_id);
+      
+      // Reset form
+      setCsvFile(null);
+      
+    } catch (error) {
+      const errorMessage = error.response?.data?.error?.message || 'Failed to upload CSV file';
+      setCsvUploadError(errorMessage);
+      setAlert({ severity: 'error', message: errorMessage });
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
+  const handleCsvFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === 'text/csv') {
+      setCsvFile(file);
+      setCsvUploadError('');
+    } else {
+      setCsvUploadError('Please select a valid CSV file');
+      setCsvFile(null);
     }
   };
 // ...existing code...
@@ -134,6 +225,14 @@ function CourseManagement() {
           value={studentForm.email}
           onChange={e => setStudentForm({ ...studentForm, email: e.target.value })}
           error={!!studentFormError && !studentForm.email}
+        />
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Team Assignment (Optional)"
+          value={studentForm.group_assignment}
+          onChange={e => setStudentForm({ ...studentForm, group_assignment: e.target.value })}
+          helperText="Enter team name or identifier for this student"
         />
         {studentFormError && (
           <Typography color="error" variant="body2" sx={{ mt: 1 }}>{studentFormError}</Typography>
@@ -172,10 +271,115 @@ function CourseManagement() {
           value={studentForm.email}
           onChange={e => setStudentForm({ ...studentForm, email: e.target.value })}
         />
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Team Assignment (Optional)"
+          value={studentForm.group_assignment}
+          onChange={e => setStudentForm({ ...studentForm, group_assignment: e.target.value })}
+          helperText="Enter team name or identifier for this student"
+        />
       </DialogContent>
       <DialogActions>
         <Button onClick={() => setEditStudentOpen(false)}>Cancel</Button>
         <Button onClick={handleUpdateStudent} variant="contained" disabled={!studentForm.student_id || !studentForm.name || !studentForm.email}>Save</Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  // CSV Upload Dialog
+  const csvUploadDialog = (
+    <Dialog open={csvUploadOpen} onClose={() => { setCsvUploadOpen(false); setCsvUploadError(''); setCsvUploadResults(null); }} maxWidth="sm" fullWidth>
+      <DialogTitle>Upload Student Roster (CSV)</DialogTitle>
+      <DialogContent>
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Upload a CSV file with the following columns:
+          </Typography>
+          <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+            <li><strong>student_id</strong> - Student ID (required)</li>
+            <li><strong>name</strong> - Student Name (required)</li>
+            <li><strong>email</strong> - Student Email (required)</li>
+            <li><strong>group_assignment</strong> - Team Assignment (optional)</li>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Note: You can also use 'group' instead of 'group_assignment' for the group column.
+          </Typography>
+        </Box>
+        
+        <Box sx={{ mb: 2 }}>
+          <input
+            accept=".csv"
+            style={{ display: 'none' }}
+            id="csv-file-input"
+            type="file"
+            onChange={handleCsvFileChange}
+          />
+          <label htmlFor="csv-file-input">
+            <Button variant="outlined" component="span" startIcon={<UploadIcon />}>
+              Choose CSV File
+            </Button>
+          </label>
+          {csvFile && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Selected: {csvFile.name}
+            </Typography>
+          )}
+        </Box>
+
+        {csvUploadError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {csvUploadError}
+          </Alert>
+        )}
+
+        {csvUploadResults && (
+          <Alert severity={csvUploadResults.errors && csvUploadResults.errors.length > 0 ? "warning" : "success"} sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              {csvUploadResults.message}
+            </Typography>
+            {csvUploadResults.students && csvUploadResults.students.length > 0 && (
+              <Typography variant="body2">
+                Students added: {csvUploadResults.students.length}
+              </Typography>
+            )}
+            {csvUploadResults.teams_created !== undefined && csvUploadResults.teams_created > 0 && (
+              <Typography variant="body2" color="primary">
+                Teams created: {csvUploadResults.teams_created}
+              </Typography>
+            )}
+            {csvUploadResults.team_names && csvUploadResults.team_names.length > 0 && (
+              <Typography variant="body2" sx={{ fontSize: '0.9rem', color: 'text.secondary' }}>
+                Team names: {csvUploadResults.team_names.join(', ')}
+              </Typography>
+            )}
+            {csvUploadResults.errors && csvUploadResults.errors.length > 0 && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2" color="error">Errors:</Typography>
+                {csvUploadResults.errors.map((error, index) => (
+                  <Typography key={index} variant="body2" color="error" sx={{ fontSize: '0.8rem' }}>
+                    • {error}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+          </Alert>
+        )}
+
+        {csvUploading && <LinearProgress sx={{ mb: 2 }} />}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => { setCsvUploadOpen(false); setCsvUploadError(''); setCsvUploadResults(null); }}>
+          Close
+        </Button>
+        <Button 
+          onClick={handleCsvUpload} 
+          variant="contained" 
+          disabled={!csvFile || csvUploading}
+          startIcon={<UploadIcon />}
+        >
+          {csvUploading ? 'Uploading...' : 'Upload'}
+        </Button>
       </DialogActions>
     </Dialog>
   );
@@ -186,29 +390,389 @@ function CourseManagement() {
   const [students, setStudents] = useState([]);
   const [studentsCourse, setStudentsCourse] = useState(null);
 
+  // Teams dialog state
+  const [teamsDialogOpen, setTeamsDialogOpen] = useState(false);
+  const [teamsLoading, setTeamsLoading] = useState(false);
+  const [teams, setTeams] = useState([]);
+  const [teamsCourse, setTeamsCourse] = useState(null);
+
+  // Edit team dialog state
+  const [editTeamDialogOpen, setEditTeamDialogOpen] = useState(false);
+  const [teamToEdit, setTeamToEdit] = useState(null);
+  const [editTeamData, setEditTeamData] = useState({ team_name: '', team_status: 'Active' });
+
+  // Create team dialog state
+  const [createTeamDialogOpen, setCreateTeamDialogOpen] = useState(false);
+  const [newTeamData, setNewTeamData] = useState({ team_name: '', team_status: 'Active' });
+
+  // Manage team students dialog state
+  const [manageStudentsDialogOpen, setManageStudentsDialogOpen] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState(null);
+  const [teamStudents, setTeamStudents] = useState([]);
+  const [availableStudents, setAvailableStudents] = useState([]);
+
+  // Student search state
+  const [studentSearch, setStudentSearch] = useState({
+    student_id: '',
+    name: '',
+    email: '',
+    team: ''
+  });
+  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [showStudentSearch, setShowStudentSearch] = useState(false);
+
+  // Team search state
+  const [teamSearch, setTeamSearch] = useState({
+    team_name: '',
+    team_status: ''
+  });
+  const [filteredTeams, setFilteredTeams] = useState([]);
+  const [showTeamSearch, setShowTeamSearch] = useState(false);
+
   const handleViewStudents = async (course) => {
     setStudentsDialogOpen(true);
     setStudentsCourse(course);
     setStudentsLoading(true);
+    // Reset search when opening dialog
+    setStudentSearch({ student_id: '', name: '', email: '', team: '' });
+    setShowStudentSearch(false); // Default to hidden
     try {
       const response = await api.get(`/courses/${course._id || course.id}/students`);
       setStudents(response.data);
+      setFilteredStudents(response.data); // Initialize filtered list with all students
     } catch (error) {
       setStudents([]);
+      setFilteredStudents([]);
     } finally {
       setStudentsLoading(false);
     }
   };
+
+  // Filter students based on search criteria
+  const filterStudents = () => {
+    let filtered = students.filter(student => {
+      const matchesId = studentSearch.student_id === '' || 
+        student.student_id.toLowerCase().includes(studentSearch.student_id.toLowerCase());
+      const matchesName = studentSearch.name === '' || 
+        student.name.toLowerCase().includes(studentSearch.name.toLowerCase());
+      const matchesEmail = studentSearch.email === '' || 
+        student.email.toLowerCase().includes(studentSearch.email.toLowerCase());
+      const matchesTeam = studentSearch.team === '' || 
+        (student.group_assignment && student.group_assignment.toLowerCase().includes(studentSearch.team.toLowerCase()));
+      
+      return matchesId && matchesName && matchesEmail && matchesTeam;
+    });
+    
+    setFilteredStudents(filtered);
+  };
+
+  // Clear student search
+  const clearStudentSearch = () => {
+    setStudentSearch({ student_id: '', name: '', email: '', team: '' });
+    setFilteredStudents(students);
+    setShowStudentSearch(false); // Hide search after clearing
+  };
+
+  // Handle search input changes
+  const handleStudentSearchChange = (field, value) => {
+    const newSearch = { ...studentSearch, [field]: value };
+    setStudentSearch(newSearch);
+    
+    // Filter immediately as user types
+    let filtered = students.filter(student => {
+      const matchesId = newSearch.student_id === '' || 
+        student.student_id.toLowerCase().includes(newSearch.student_id.toLowerCase());
+      const matchesName = newSearch.name === '' || 
+        student.name.toLowerCase().includes(newSearch.name.toLowerCase());
+      const matchesEmail = newSearch.email === '' || 
+        student.email.toLowerCase().includes(newSearch.email.toLowerCase());
+      const matchesTeam = newSearch.team === '' || 
+        (student.group_assignment && student.group_assignment.toLowerCase().includes(newSearch.team.toLowerCase()));
+      
+      return matchesId && matchesName && matchesEmail && matchesTeam;
+    });
+    
+    setFilteredStudents(filtered);
+  };
+
+  // Filter teams based on search criteria
+  const filterTeams = () => {
+    let filtered = teams.filter(team => {
+      const matchesName = teamSearch.team_name === '' || 
+        team.team_name.toLowerCase().includes(teamSearch.team_name.toLowerCase());
+      const matchesStatus = teamSearch.team_status === '' || 
+        team.team_status === teamSearch.team_status;
+      
+      return matchesName && matchesStatus;
+    });
+    
+    setFilteredTeams(filtered);
+  };
+
+  // Clear team search
+  const clearTeamSearch = () => {
+    setTeamSearch({ team_name: '', team_status: '' });
+    setFilteredTeams(teams);
+    setShowTeamSearch(false); // Hide search after clearing
+  };
+
+  // Handle team search input changes
+  const handleTeamSearchChange = (field, value) => {
+    const newSearch = { ...teamSearch, [field]: value };
+    setTeamSearch(newSearch);
+    
+    // Filter immediately as user types
+    let filtered = teams.filter(team => {
+      const matchesName = newSearch.team_name === '' || 
+        team.team_name.toLowerCase().includes(newSearch.team_name.toLowerCase());
+      const matchesStatus = newSearch.team_status === '' || 
+        team.team_status === newSearch.team_status;
+      
+      return matchesName && matchesStatus;
+    });
+    
+    setFilteredTeams(filtered);
+  };
+
+  const handleViewTeams = async (course) => {
+    setTeamsDialogOpen(true);
+    setTeamsCourse(course);
+    setTeamsLoading(true);
+    // Reset search when opening dialog
+    setTeamSearch({ team_name: '', team_status: '' });
+    setShowTeamSearch(false); // Default to hidden
+    try {
+      const response = await api.get(`/courses/${course._id || course.id}/teams`);
+      setTeams(response.data);
+      setFilteredTeams(response.data); // Initialize filtered list with all teams
+    } catch (error) {
+      setTeams([]);
+      setFilteredTeams([]);
+    } finally {
+      setTeamsLoading(false);
+    }
+  };
+
+  const handleClearAllTeams = async () => {
+    if (!teamsCourse) return;
+    
+    if (!window.confirm(`Are you sure you want to delete ALL teams for ${teamsCourse.course_name}? This will also unlink all students from their teams.`)) {
+      return;
+    }
+    
+    try {
+      const response = await api.delete(`/courses/${teamsCourse._id}/teams`);
+      setAlert({ severity: 'success', message: response.data.message });
+      setTeams([]); // Clear the teams list
+      setFilteredTeams([]); // Clear the filtered teams list
+      fetchCoursesWithCounts(); // Refresh the course list to update team count
+    } catch (error) {
+      console.error('Error clearing teams:', error);
+      setAlert({ severity: 'error', message: 'Failed to clear teams' });
+    }
+  };
+
+  const handleDeleteTeam = async (teamId, teamName) => {
+    if (!teamsCourse || !teamId) return;
+    
+    if (!window.confirm(`Are you sure you want to delete "${teamName}"? This will unlink all students from this team.`)) {
+      return;
+    }
+    
+    try {
+      await api.delete(`/courses/${teamsCourse._id}/teams/${teamId}`);
+      setAlert({ severity: 'success', message: `Team "${teamName}" deleted successfully` });
+      
+      // Remove the deleted team from the local state
+      setTeams(prevTeams => prevTeams.filter(team => team._id !== teamId));
+      // Re-apply current search filters
+      handleTeamSearchChange('team_name', teamSearch.team_name);
+      
+      // Refresh the course list to update team count
+      fetchCoursesWithCounts();
+    } catch (error) {
+      console.error('Error deleting team:', error);
+      setAlert({ severity: 'error', message: `Failed to delete team "${teamName}"` });
+    }
+  };
+
+  const handleEditTeam = (team) => {
+    setTeamToEdit(team);
+    setEditTeamData({
+      team_name: team.team_name,
+      team_status: team.team_status
+    });
+    setEditTeamDialogOpen(true);
+  };
+
+  const handleSaveTeamEdit = async () => {
+    if (!teamToEdit || !teamsCourse) return;
+    
+    // Validation
+    if (!editTeamData.team_name.trim()) {
+      setAlert({ severity: 'error', message: 'Team name is required' });
+      return;
+    }
+    
+    try {
+      await api.put(`/courses/${teamsCourse._id}/teams/${teamToEdit._id}`, editTeamData);
+      setAlert({ severity: 'success', message: `Team "${editTeamData.team_name}" updated successfully` });
+      
+      // Update the team in the local state
+      setTeams(prevTeams => 
+        prevTeams.map(team => 
+          team._id === teamToEdit._id 
+            ? { ...team, ...editTeamData }
+            : team
+        )
+      );
+      // Re-apply current search filters
+      handleTeamSearchChange('team_name', teamSearch.team_name);
+      
+      // If team name was changed, refresh students list to show updated team assignments
+      if (editTeamData.team_name !== teamToEdit.team_name && students.length > 0) {
+        try {
+          const studentsResponse = await api.get(`/courses/${teamsCourse._id}/students`);
+          setStudents(studentsResponse.data);
+        } catch (error) {
+          console.error('Error refreshing students list:', error);
+        }
+      }
+      
+      // Close the dialog
+      setEditTeamDialogOpen(false);
+      setTeamToEdit(null);
+      setEditTeamData({ team_name: '', team_status: 'Active' });
+      
+    } catch (error) {
+      console.error('Error updating team:', error);
+      setAlert({ severity: 'error', message: 'Failed to update team' });
+    }
+  };
+
+  const handleCreateTeam = async () => {
+    if (!teamsCourse) return;
+    
+    // Validation
+    if (!newTeamData.team_name.trim()) {
+      setAlert({ severity: 'error', message: 'Team name is required' });
+      return;
+    }
+    
+    try {
+      await api.post(`/courses/${teamsCourse._id}/teams`, [newTeamData]);
+      setAlert({ severity: 'success', message: `Team "${newTeamData.team_name}" created successfully` });
+      
+      // Refresh teams list
+      const teamsResponse = await api.get(`/courses/${teamsCourse._id}/teams`);
+      setTeams(teamsResponse.data);
+      // Re-apply current search filters
+      handleTeamSearchChange('team_name', teamSearch.team_name);
+      
+      // Close the dialog and reset form
+      setCreateTeamDialogOpen(false);
+      setNewTeamData({ team_name: '', team_status: 'Active' });
+      
+      // Refresh course counts
+      fetchCoursesWithCounts();
+      
+    } catch (error) {
+      console.error('Error creating team:', error);
+      setAlert({ severity: 'error', message: 'Failed to create team' });
+    }
+  };
+
+  const handleManageTeamStudents = async (team) => {
+    setSelectedTeam(team);
+    setManageStudentsDialogOpen(true);
+    
+    try {
+      // Get all students in the course
+      const allStudentsResponse = await api.get(`/courses/${teamsCourse._id}/students`);
+      const allStudents = allStudentsResponse.data;
+      
+      // Filter students by team
+      const studentsInTeam = allStudents.filter(student => 
+        student.team_id === team._id || student.group_assignment === team.team_name
+      );
+      const studentsNotInTeam = allStudents.filter(student => 
+        !student.team_id || (student.team_id !== team._id && student.group_assignment !== team.team_name)
+      );
+      
+      setTeamStudents(studentsInTeam);
+      setAvailableStudents(studentsNotInTeam);
+    } catch (error) {
+      console.error('Error fetching team students:', error);
+      setAlert({ severity: 'error', message: 'Failed to load team students' });
+    }
+  };
+
+  const handleAddStudentToTeam = async (studentId) => {
+    if (!selectedTeam || !teamsCourse) return;
+    
+    try {
+      await api.post(`/courses/${teamsCourse._id}/teams/${selectedTeam._id}/students/${studentId}`);
+      
+      // Move student from available to team
+      const student = availableStudents.find(s => s._id === studentId);
+      if (student) {
+        setTeamStudents(prev => [...prev, { ...student, team_id: selectedTeam._id, group_assignment: selectedTeam.team_name }]);
+        setAvailableStudents(prev => prev.filter(s => s._id !== studentId));
+      }
+      
+      // Refresh teams list to update counts
+      const teamsResponse = await api.get(`/courses/${teamsCourse._id}/teams`);
+      setTeams(teamsResponse.data);
+      
+      setAlert({ severity: 'success', message: `Student added to ${selectedTeam.team_name}` });
+    } catch (error) {
+      console.error('Error adding student to team:', error);
+      setAlert({ severity: 'error', message: 'Failed to add student to team' });
+    }
+  };
+
+  const handleRemoveStudentFromTeam = async (studentId) => {
+    if (!selectedTeam || !teamsCourse) return;
+    
+    try {
+      await api.delete(`/courses/${teamsCourse._id}/teams/${selectedTeam._id}/students/${studentId}`);
+      
+      // Move student from team to available
+      const student = teamStudents.find(s => s._id === studentId);
+      if (student) {
+        setAvailableStudents(prev => [...prev, { ...student, team_id: null, group_assignment: '' }]);
+        setTeamStudents(prev => prev.filter(s => s._id !== studentId));
+      }
+      
+      // Refresh teams list to update counts
+      const teamsResponse = await api.get(`/courses/${teamsCourse._id}/teams`);
+      setTeams(teamsResponse.data);
+      
+      setAlert({ severity: 'success', message: `Student removed from ${selectedTeam.team_name}` });
+    } catch (error) {
+      console.error('Error removing student from team:', error);
+      setAlert({ severity: 'error', message: 'Failed to remove student from team' });
+    }
+  };
+
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [courseToEdit, setCourseToEdit] = useState(null);
-  const [editCourse, setEditCourse] = useState({ course_code: '', course_name: '', semester: '' });
+  const [editCourse, setEditCourse] = useState({ 
+    course_name: '', 
+    course_number: '', 
+    course_section: '', 
+    semester: '',
+    course_status: 'Active'
+  });
 
   const handleEditClick = (course) => {
     setCourseToEdit(course);
     setEditCourse({
-      course_code: course.course_code,
       course_name: course.course_name,
-      semester: course.semester
+      course_number: course.course_number || course.course_code || '',
+      course_section: course.course_section || '',
+      semester: course.semester,
+      course_status: course.course_status || 'Active'
     });
     setEditDialogOpen(true);
   };
@@ -248,26 +812,43 @@ function CourseManagement() {
   };
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [newCourse, setNewCourse] = useState({
-    course_code: '',
     course_name: '',
+    course_number: '',
+    course_section: '',
     semester: ''
   });
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [alert, setAlert] = useState(null);
 
-
-  useEffect(() => {
-    fetchCoursesWithCounts();
-  }, []);
-
+  // Search filter state
+  const [searchFilters, setSearchFilters] = useState({
+    course_name: '',
+    course_number: '',
+    course_section: '',
+    semester: '',
+    course_status: 'Active' // Back to default Active filter
+  });
+  const [showSearchFilters, setShowSearchFilters] = useState(false);
 
   // Fetch all courses, then update each with the latest student_count
-  const fetchCoursesWithCounts = async () => {
+  const fetchCoursesWithCounts = useCallback(async (filters = null) => {
     setLoading(true);
     try {
-      const response = await api.get('/courses');
+      // Use provided filters or current search filters
+      const activeFilters = filters || searchFilters;
+      
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+      Object.entries(activeFilters).forEach(([key, value]) => {
+        if (value && value.trim()) {
+          queryParams.append(key, value.trim());
+        }
+      });
+      
+      const response = await api.get(`/courses?${queryParams.toString()}`);
       let coursesList = response.data;
+      
       // Fetch the latest course object for each course in parallel
       const updatedCourses = await Promise.all(
         coursesList.map(async (course) => {
@@ -281,24 +862,56 @@ function CourseManagement() {
           }
         })
       );
-  // Only show active courses
-  setCourses(updatedCourses.filter(c => c.is_active !== false));
+      
+      setCourses(updatedCourses);
     } catch (error) {
       setAlert({ severity: 'error', message: 'Failed to fetch courses' });
     } finally {
       setLoading(false);
     }
+  }, [searchFilters]);
+
+  useEffect(() => {
+    fetchCoursesWithCounts();
+  }, [fetchCoursesWithCounts]); // Re-fetch when fetchCoursesWithCounts changes
+
+  // Search handlers
+  const handleSearch = () => {
+    fetchCoursesWithCounts(searchFilters);
+  };
+
+  const handleClearSearch = () => {
+    const clearedFilters = {
+      course_name: '',
+      course_number: '',
+      course_section: '',
+      semester: '',
+      course_status: 'Active'
+    };
+    setSearchFilters(clearedFilters);
+    fetchCoursesWithCounts(clearedFilters);
   };
 
   const handleCreateCourse = async () => {
     try {
+      console.log('Creating course with data:', newCourse);
   // eslint-disable-next-line
   const response = await api.post('/courses', newCourse);
+      console.log('Course creation successful:', response);
       setAlert({ severity: 'success', message: 'Course created successfully' });
       setCreateDialogOpen(false);
   fetchCoursesWithCounts();
-      setNewCourse({ course_code: '', course_name: '', semester: '' });
+      setNewCourse({ 
+        course_name: '', 
+        course_number: '', 
+        course_section: '', 
+        semester: '' 
+      });
     } catch (error) {
+      console.error('Course creation error:', error.response?.data || error.message);
+      console.error('Full error object:', error);
+      console.error('Error response:', error.response);
+      console.error('Error status:', error.response?.status);
       setAlert({ severity: 'error', message: 'Failed to create course' });
     }
   };
@@ -363,6 +976,7 @@ function CourseManagement() {
     <div className={styles.courseManagementContainer}>
       {addStudentDialog}
       {editStudentDialog}
+      {csvUploadDialog}
       <Box display="flex" justifyContent="flex-end" mb={2}>
         <Button variant="outlined" className={styles.logoutButton} color="secondary" onClick={handleLogout}>
           Logout
@@ -372,15 +986,98 @@ function CourseManagement() {
         <Typography variant="h4" component="h1" className={styles.title}>
           Course Management
         </Typography>
-        <Button
-          variant="contained"
-          className={styles.createButton}
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-        >
-          Create Course
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            className={styles.createButton}
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            Create Course
+          </Button>
+        </Box>
       </div>
+      
+      {/* Search Filters */}
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="h6" component="h2">
+              Search Courses
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<FilterListIcon />}
+              onClick={() => setShowSearchFilters(!showSearchFilters)}
+            >
+              {showSearchFilters ? 'Hide Filters' : 'Show Filters'}
+            </Button>
+          </Box>
+          
+          <Collapse in={showSearchFilters}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 2 }}>
+              <TextField
+                fullWidth
+                label="Course Name"
+                value={searchFilters.course_name}
+                onChange={(e) => setSearchFilters({ ...searchFilters, course_name: e.target.value })}
+                placeholder="Software Engineering"
+              />
+              <TextField
+                fullWidth
+                label="Course Number"
+                value={searchFilters.course_number}
+                onChange={(e) => setSearchFilters({ ...searchFilters, course_number: e.target.value })}
+                placeholder="CS 4850"
+              />
+              <TextField
+                fullWidth
+                label="Course Section"
+                value={searchFilters.course_section}
+                onChange={(e) => setSearchFilters({ ...searchFilters, course_section: e.target.value })}
+                placeholder="01"
+              />
+              <TextField
+                fullWidth
+                label="Semester"
+                value={searchFilters.semester}
+                onChange={(e) => setSearchFilters({ ...searchFilters, semester: e.target.value })}
+                placeholder="Fall 2025"
+              />
+              <FormControl fullWidth>
+                <InputLabel>Course Status</InputLabel>
+                <Select
+                  value={searchFilters.course_status}
+                  label="Course Status"
+                  onChange={(e) => setSearchFilters({ ...searchFilters, course_status: e.target.value })}
+                >
+                  <MenuItem value="Active">Active</MenuItem>
+                  <MenuItem value="Inactive">Inactive</MenuItem>
+                  <MenuItem value="">All</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+            
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="contained"
+                startIcon={<SearchIcon />}
+                onClick={handleSearch}
+              >
+                Search
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<ClearIcon />}
+                onClick={handleClearSearch}
+              >
+                Clear
+              </Button>
+            </Box>
+          </Collapse>
+        </CardContent>
+      </Card>
+
       {alert && (
         <Alert severity={alert.severity} className={styles.alert} onClose={() => setAlert(null)}>
           {alert.message}
@@ -391,8 +1088,9 @@ function CourseManagement() {
           <Table style={{ width: '100%' }}>
             <TableHead>
               <TableRow>
-                <TableCell>Course Code</TableCell>
                 <TableCell>Course Name</TableCell>
+                <TableCell>Course Number</TableCell>
+                <TableCell>Course Section</TableCell>
                 <TableCell>Semester</TableCell>
                 <TableCell align="center">Students</TableCell>
                 <TableCell align="center">Teams</TableCell>
@@ -403,32 +1101,33 @@ function CourseManagement() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     <LinearProgress />
                   </TableCell>
                 </TableRow>
               ) : courses.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     No courses found. Create your first course to get started.
                   </TableCell>
                 </TableRow>
               ) : (
                 courses.map((course) => (
                   <TableRow key={course.id || course._id}>
-                    <TableCell>{course.course_code}</TableCell>
                     <TableCell>{course.course_name}</TableCell>
+                    <TableCell>{course.course_number || course.course_code || 'N/A'}</TableCell>
+                    <TableCell>{course.course_section || 'N/A'}</TableCell>
                     <TableCell>{course.semester}</TableCell>
                     <TableCell align="center">
-                      <Chip label={course.student_count} size="small" />
+                      <Chip label={course.student_count || 0} size="small" />
                     </TableCell>
                     <TableCell align="center">
-                      <Chip label={course.team_count} size="small" />
+                      <Chip label={course.team_count || 0} size="small" />
                     </TableCell>
                     <TableCell align="center">
                       <Chip 
-                        label="Active" 
-                        color="success" 
+                        label={course.course_status || 'Active'} 
+                        color={course.course_status === 'Active' ? 'success' : 'default'}
                         size="small" 
                       />
                     </TableCell>
@@ -456,17 +1155,100 @@ function CourseManagement() {
                         </IconButton>
       {/* Manage Students Dialog */}
   <Dialog open={studentsDialogOpen} onClose={() => { setStudentsDialogOpen(false); fetchCoursesWithCounts(); }} maxWidth="md" fullWidth>
-        <DialogTitle>Manage Students for {studentsCourse?.course_code} - {studentsCourse?.course_name}</DialogTitle>
+        <DialogTitle>Manage Students for {studentsCourse?.course_number || studentsCourse?.course_code} {studentsCourse?.course_section || ''} - {studentsCourse?.course_name}</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-            <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={() => setAddStudentOpen(true)}>
-              Add Student
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<FilterListIcon />}
+              onClick={() => setShowStudentSearch(!showStudentSearch)}
+              size="small"
+            >
+              {showStudentSearch ? 'Hide Search' : 'Show Search'}
             </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button variant="outlined" size="small" startIcon={<UploadIcon />} onClick={() => setCsvUploadOpen(true)}>
+                Upload CSV
+              </Button>
+              <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={() => setAddStudentOpen(true)}>
+                Add Student
+              </Button>
+            </Box>
           </Box>
+
+          {/* Student Search Filters */}
+          <Collapse in={showStudentSearch}>
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Search Students ({filteredStudents.length} of {students.length})
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                  <TextField
+                    size="small"
+                    label="Student ID"
+                    value={studentSearch.student_id}
+                    onChange={(e) => handleStudentSearchChange('student_id', e.target.value)}
+                    placeholder="Search by ID..."
+                    sx={{ minWidth: 150, flex: 1 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="Name"
+                    value={studentSearch.name}
+                    onChange={(e) => handleStudentSearchChange('name', e.target.value)}
+                    placeholder="Search by name..."
+                    sx={{ minWidth: 150, flex: 1 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="Email"
+                    value={studentSearch.email}
+                    onChange={(e) => handleStudentSearchChange('email', e.target.value)}
+                    placeholder="Search by email..."
+                    sx={{ minWidth: 150, flex: 1 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="Team"
+                    value={studentSearch.team}
+                    onChange={(e) => handleStudentSearchChange('team', e.target.value)}
+                    placeholder="Search by team..."
+                    sx={{ minWidth: 150, flex: 1 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<SearchIcon />}
+                    onClick={filterStudents}
+                  >
+                    Search
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<ClearIcon />}
+                    onClick={clearStudentSearch}
+                    disabled={!studentSearch.student_id && !studentSearch.name && !studentSearch.email && !studentSearch.team}
+                  >
+                    Clear Search
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Collapse>
           {studentsLoading ? (
             <LinearProgress />
-          ) : students.length === 0 ? (
-            <Typography>No students found for this course.</Typography>
+          ) : filteredStudents.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              {students.length === 0 ? (
+                <Typography>No students found for this course.</Typography>
+              ) : (
+                <Typography>No students match your search criteria.</Typography>
+              )}
+            </Box>
           ) : (
             <TableContainer component={Paper} sx={{ mt: 2 }}>
               <Table>
@@ -475,15 +1257,23 @@ function CourseManagement() {
                     <TableCell>Student ID</TableCell>
                     <TableCell>Name</TableCell>
                     <TableCell>Email</TableCell>
+                    <TableCell>Team Assignment</TableCell>
                     <TableCell align="center">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {students.map((student) => (
+                  {filteredStudents.map((student) => (
                     <TableRow key={student.id || student._id}>
                       <TableCell>{student.student_id}</TableCell>
                       <TableCell>{student.name}</TableCell>
                       <TableCell>{student.email}</TableCell>
+                      <TableCell>
+                        {student.group_assignment ? (
+                          <Chip label={student.group_assignment} size="small" variant="outlined" />
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">Not assigned</Typography>
+                        )}
+                      </TableCell>
                       <TableCell align="center">
                         <IconButton size="small" color="primary" onClick={() => handleEditStudent(student)} title="Edit Student">
                           <EditIcon />
@@ -503,10 +1293,356 @@ function CourseManagement() {
           <Button onClick={() => { setStudentsDialogOpen(false); fetchCoursesWithCounts(); }}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Manage Teams Dialog */}
+      <Dialog open={teamsDialogOpen} onClose={() => { setTeamsDialogOpen(false); fetchCoursesWithCounts(); }} maxWidth="md" fullWidth>
+        <DialogTitle>Manage Teams for {teamsCourse?.course_number || teamsCourse?.course_code} {teamsCourse?.course_section || ''} - {teamsCourse?.course_name}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<FilterListIcon />}
+              onClick={() => setShowTeamSearch(!showTeamSearch)}
+              size="small"
+            >
+              {showTeamSearch ? 'Hide Search' : 'Show Search'}
+            </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button 
+                variant="contained" 
+                size="small" 
+                startIcon={<AddIcon />}
+                onClick={() => setCreateTeamDialogOpen(true)}
+              >
+                Create Team
+              </Button>
+            </Box>
+          </Box>
+
+          {/* Team Search Filters */}
+          <Collapse in={showTeamSearch}>
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Search Teams ({filteredTeams.length} of {teams.length})
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                  <TextField
+                    size="small"
+                    label="Team Name"
+                    value={teamSearch.team_name}
+                    onChange={(e) => handleTeamSearchChange('team_name', e.target.value)}
+                    placeholder="Search by team name..."
+                    sx={{ minWidth: 200, flex: 1 }}
+                  />
+                  <FormControl size="small" sx={{ minWidth: 150, flex: 1 }}>
+                    <InputLabel>Team Status</InputLabel>
+                    <Select
+                      value={teamSearch.team_status}
+                      label="Team Status"
+                      onChange={(e) => handleTeamSearchChange('team_status', e.target.value)}
+                    >
+                      <MenuItem value="">All</MenuItem>
+                      <MenuItem value="Active">Active</MenuItem>
+                      <MenuItem value="Inactive">Inactive</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<SearchIcon />}
+                    onClick={filterTeams}
+                  >
+                    Search
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<ClearIcon />}
+                    onClick={clearTeamSearch}
+                    disabled={!teamSearch.team_name && !teamSearch.team_status}
+                  >
+                    Clear Search
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Collapse>
+
+          {teamsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <Typography>Loading teams...</Typography>
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Team Name</TableCell>
+                    <TableCell align="center">Students</TableCell>
+                    <TableCell align="center">Status</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredTeams.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} align="center">
+                        <Typography color="text.secondary">
+                          {teams.length === 0 ? 'No teams found for this course.' : 'No teams match your search criteria.'}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredTeams
+                      .sort((a, b) => {
+                        // Natural sort that handles both alphabetical and numerical sorting
+                        const nameA = (a.team_name || '').toLowerCase();
+                        const nameB = (b.team_name || '').toLowerCase();
+                        
+                        // Use localeCompare with numeric option for natural sorting
+                        return nameA.localeCompare(nameB, undefined, {
+                          numeric: true,
+                          sensitivity: 'base'
+                        });
+                      })
+                      .map((team) => (
+                      <TableRow key={team._id || team.id}>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                            {team.team_name}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Chip 
+                            label={team.student_count || 0} 
+                            size="small" 
+                            color="primary" 
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="center">
+                          <Chip 
+                            label={team.team_status || 'Active'} 
+                            size="small" 
+                            color={team.team_status === 'Active' ? 'success' : 'default'}
+                          />
+                        </TableCell>
+                        <TableCell align="center">
+                          <IconButton 
+                            size="small" 
+                            color="primary" 
+                            title="Edit Team"
+                            onClick={() => handleEditTeam(team)}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton 
+                            size="small" 
+                            color="primary" 
+                            title="Manage Students"
+                            onClick={() => handleManageTeamStudents(team)}
+                          >
+                            <PeopleIcon />
+                          </IconButton>
+                          <IconButton 
+                            size="small" 
+                            color="error" 
+                            title="Delete Team"
+                            onClick={() => handleDeleteTeam(team._id || team.id, team.team_name)}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={handleClearAllTeams}
+            color="error"
+            variant="outlined"
+            disabled={!teams || teams.length === 0}
+          >
+            Clear All Teams
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <Button onClick={() => { setTeamsDialogOpen(false); fetchCoursesWithCounts(); }}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Team Dialog */}
+      <Dialog open={editTeamDialogOpen} onClose={() => setEditTeamDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Team</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Team Name"
+            value={editTeamData.team_name}
+            onChange={(e) => setEditTeamData({ ...editTeamData, team_name: e.target.value })}
+            margin="normal"
+            required
+          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Team Status</InputLabel>
+            <Select
+              value={editTeamData.team_status}
+              onChange={(e) => setEditTeamData({ ...editTeamData, team_status: e.target.value })}
+              label="Team Status"
+            >
+              <MenuItem value="Active">Active</MenuItem>
+              <MenuItem value="Inactive">Inactive</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditTeamDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleSaveTeamEdit} 
+            variant="contained"
+            disabled={!editTeamData.team_name.trim()}
+          >
+            Save Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Team Dialog */}
+      <Dialog open={createTeamDialogOpen} onClose={() => setCreateTeamDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New Team</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Team Name"
+            value={newTeamData.team_name}
+            onChange={(e) => setNewTeamData({ ...newTeamData, team_name: e.target.value })}
+            margin="normal"
+            required
+            autoFocus
+            placeholder="Team 1"
+          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Team Status</InputLabel>
+            <Select
+              value={newTeamData.team_status}
+              onChange={(e) => setNewTeamData({ ...newTeamData, team_status: e.target.value })}
+              label="Team Status"
+            >
+              <MenuItem value="Active">Active</MenuItem>
+              <MenuItem value="Inactive">Inactive</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateTeamDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleCreateTeam} 
+            variant="contained"
+            disabled={!newTeamData.team_name.trim()}
+          >
+            Create Team
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Manage Team Students Dialog */}
+      <Dialog open={manageStudentsDialogOpen} onClose={() => setManageStudentsDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Manage Students in {selectedTeam?.team_name}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, mt: 2 }}>
+            {/* Students in Team */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Students in Team ({teamStudents.length})
+                </Typography>
+                {teamStudents.length === 0 ? (
+                  <Typography color="text.secondary">No students in this team</Typography>
+                ) : (
+                  <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+                    {teamStudents.map((student) => (
+                      <Box key={student._id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1, borderBottom: '1px solid #eee' }}>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                            {student.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {student.student_id} • {student.email}
+                          </Typography>
+                        </Box>
+                        <IconButton 
+                          size="small" 
+                          color="error"
+                          onClick={() => handleRemoveStudentFromTeam(student._id)}
+                          title="Remove from team"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Available Students */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Available Students ({availableStudents.length})
+                </Typography>
+                {availableStudents.length === 0 ? (
+                  <Typography color="text.secondary">No available students</Typography>
+                ) : (
+                  <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+                    {availableStudents.map((student) => (
+                      <Box key={student._id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1, borderBottom: '1px solid #eee' }}>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                            {student.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {student.student_id} • {student.email}
+                          </Typography>
+                          {student.group_assignment && (
+                            <Typography variant="caption" color="warning.main" sx={{ display: 'block' }}>
+                              Currently in: {student.group_assignment}
+                            </Typography>
+                          )}
+                        </Box>
+                        <IconButton 
+                          size="small" 
+                          color="primary"
+                          onClick={() => handleAddStudentToTeam(student._id)}
+                          title="Add to team"
+                        >
+                          <AddIcon />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setManageStudentsDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
                         <IconButton
                           size="small"
                           color="primary"
-                          onClick={() => navigate(`/courses/${course.id}/teams`)}
+                          onClick={() => handleViewTeams(course)}
                           title="Manage Teams"
                         >
                           <GroupIcon />
@@ -560,45 +1696,52 @@ function CourseManagement() {
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Create New Course</DialogTitle>
         <DialogContent>
-          <Grid container columns={12} columnSpacing={2} sx={{ mt: 1 }}>
-            <Grid sx={{ width: '100%' }}>
-              <TextField
-                fullWidth
-                variant="outlined"
-                label="Course Code"
-                value={newCourse.course_code}
-                onChange={(e) => setNewCourse({ ...newCourse, course_code: e.target.value })}
-                placeholder="CS 4850"
-              />
-            </Grid>
-            <Grid sx={{ width: '100%' }}>
-              <TextField
-                fullWidth
-                variant="outlined"
-                label="Course Name"
-                value={newCourse.course_name}
-                onChange={(e) => setNewCourse({ ...newCourse, course_name: e.target.value })}
-                placeholder="Software Engineering"
-              />
-            </Grid>
-            <Grid sx={{ width: '100%' }}>
-              <TextField
-                fullWidth
-                variant="outlined"
-                label="Semester"
-                value={newCourse.semester}
-                onChange={(e) => setNewCourse({ ...newCourse, semester: e.target.value })}
-                placeholder="Fall 2025"
-              />
-            </Grid>
-          </Grid>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              label="Course Name"
+              value={newCourse.course_name}
+              onChange={(e) => setNewCourse({ ...newCourse, course_name: e.target.value })}
+              placeholder="Software Engineering"
+              autoFocus
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              variant="outlined"
+              label="Course Number"
+              value={newCourse.course_number}
+              onChange={(e) => setNewCourse({ ...newCourse, course_number: e.target.value })}
+              placeholder="CS 4850"
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              variant="outlined"
+              label="Course Section"
+              value={newCourse.course_section}
+              onChange={(e) => setNewCourse({ ...newCourse, course_section: e.target.value })}
+              placeholder="01"
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              variant="outlined"
+              label="Semester"
+              value={newCourse.semester}
+              onChange={(e) => setNewCourse({ ...newCourse, semester: e.target.value })}
+              placeholder="Fall 2025"
+              margin="normal"
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
           <Button 
             onClick={handleCreateCourse} 
             variant="contained"
-            disabled={!newCourse.course_code || !newCourse.course_name || !newCourse.semester}
+            disabled={!newCourse.course_name || !newCourse.course_number || !newCourse.course_section || !newCourse.semester}
           >
             Create
           </Button>
@@ -616,10 +1759,10 @@ function CourseManagement() {
               <TextField
                 fullWidth
                 variant="outlined"
-                label="Course Code"
-                value={editCourse.course_code}
-                onChange={(e) => setEditCourse({ ...editCourse, course_code: e.target.value })}
-                placeholder="CS 4850"
+                label="Course Name"
+                value={editCourse.course_name}
+                onChange={(e) => setEditCourse({ ...editCourse, course_name: e.target.value })}
+                placeholder="Software Engineering"
                 autoComplete="off"
                 autoFocus
                 margin="normal"
@@ -629,10 +1772,22 @@ function CourseManagement() {
               <TextField
                 fullWidth
                 variant="outlined"
-                label="Course Name"
-                value={editCourse.course_name}
-                onChange={(e) => setEditCourse({ ...editCourse, course_name: e.target.value })}
-                placeholder="Software Engineering"
+                label="Course Number"
+                value={editCourse.course_number}
+                onChange={(e) => setEditCourse({ ...editCourse, course_number: e.target.value })}
+                placeholder="CS 4850"
+                autoComplete="off"
+                margin="normal"
+              />
+            </Grid>
+            <Grid sx={{ width: '100%' }}>
+              <TextField
+                fullWidth
+                variant="outlined"
+                label="Course Section"
+                value={editCourse.course_section}
+                onChange={(e) => setEditCourse({ ...editCourse, course_section: e.target.value })}
+                placeholder="01"
                 autoComplete="off"
                 margin="normal"
               />
@@ -649,6 +1804,19 @@ function CourseManagement() {
                 margin="normal"
               />
             </Grid>
+            <Grid sx={{ width: '100%' }}>
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Course Status</InputLabel>
+                <Select
+                  value={editCourse.course_status}
+                  label="Course Status"
+                  onChange={(e) => setEditCourse({ ...editCourse, course_status: e.target.value })}
+                >
+                  <MenuItem value="Active">Active</MenuItem>
+                  <MenuItem value="Inactive">Inactive</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
@@ -656,7 +1824,7 @@ function CourseManagement() {
           <Button 
             onClick={handleEditCourse} 
             variant="contained"
-            disabled={!editCourse.course_code || !editCourse.course_name || !editCourse.semester}
+            disabled={!editCourse.course_name || !editCourse.course_number || !editCourse.course_section || !editCourse.semester}
           >
             Save
           </Button>

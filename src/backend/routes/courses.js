@@ -13,6 +13,7 @@ const { authenticateToken } = require('../middleware/auth');
 // Course management endpoints
 router.get('/', authenticateToken, courseController.listCourses);
 router.post('/', authenticateToken, courseController.createCourse);
+router.post('/migrate', authenticateToken, courseController.migrateCourses); // Migration endpoint
 router.get('/:course_id', authenticateToken, courseController.getCourse);
 router.put('/:course_id', authenticateToken, courseController.updateCourse);
 router.delete('/:course_id', authenticateToken, courseController.deleteCourse);
@@ -47,4 +48,7 @@ router.get('/:course_id/teams', authenticateToken, teamController.listTeams);
 router.post('/:course_id/teams', authenticateToken, teamController.createTeams);
 router.put('/:course_id/teams/:team_id', authenticateToken, teamController.updateTeam);
 router.delete('/:course_id/teams/:team_id', authenticateToken, teamController.deleteTeam);
+router.delete('/:course_id/teams', authenticateToken, teamController.clearAllTeams); // Clear all teams
 router.post('/:course_id/teams/auto-assign', authenticateToken, teamController.autoAssignTeams);
+router.post('/:course_id/teams/:team_id/students/:student_id', authenticateToken, teamController.addStudentToTeam);
+router.delete('/:course_id/teams/:team_id/students/:student_id', authenticateToken, teamController.removeStudentFromTeam);
