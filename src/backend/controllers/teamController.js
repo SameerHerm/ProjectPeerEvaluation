@@ -99,7 +99,9 @@ exports.deleteTeam = async (req, res, next) => {
       err.status = 400;
       return next(err);
     }
-    const team = await Team.findOneAndDelete({ _id: team_id, course_id });
+    
+    // Find the team first to check if it has students
+    const team = await Team.findOne({ _id: team_id, course_id });
     if (!team) {
       const err = new Error('Team not found.');
       err.code = 'NOT_FOUND';
@@ -107,14 +109,18 @@ exports.deleteTeam = async (req, res, next) => {
       return next(err);
     }
     
-    // Unlink all students from this team
-    const Student = require('../models/Student');
-    const updateResult = await Student.updateMany(
-      { team_id: team_id },
-      { $unset: { team_id: "", group_assignment: "" } }
-    );
+    // Check if team has any students - if so, prevent deletion
+    if (team.students.length > 0) {
+      const err = new Error('Cannot delete team with students. Please remove all students from the team first.');
+      err.code = 'CONSTRAINT_ERROR';
+      err.status = 409;
+      return next(err);
+    }
     
-    console.log(`Unlinked ${updateResult.modifiedCount} students from deleted team: ${team.team_name}`);
+    // Delete the team (no students to unlink)
+    await Team.findOneAndDelete({ _id: team_id, course_id });
+    
+    console.log(`Deleted empty team: ${team.team_name}`);
     
     // Update course team_count
     const Course = require('../models/Course');
@@ -123,8 +129,7 @@ exports.deleteTeam = async (req, res, next) => {
     await Course.findByIdAndUpdate(courseObjectId, { team_count: teamCount });
     
     res.status(200).json({ 
-      message: `Team "${team.team_name}" deleted successfully.`,
-      students_unlinked: updateResult.modifiedCount
+      message: `Team "${team.team_name}" deleted successfully.`
     });
   } catch (err) {
     err.code = err.code || 'SERVER_ERROR';
@@ -179,4 +184,149 @@ exports.autoAssignTeams = async (req, res, next) => {
   err.code = 'NOT_IMPLEMENTED';
   err.status = 501;
   next(err);
+};
+
+exports.addStudentToTeam = async (req, res, next) => {
+  try {
+    const { course_id, team_id, student_id } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(course_id) || 
+        !mongoose.Types.ObjectId.isValid(team_id) || 
+        !mongoose.Types.ObjectId.isValid(student_id)) {
+      const err = new Error('Invalid course, team, or student ID.');
+      err.code = 'VALIDATION_ERROR';
+      err.status = 400;
+      return next(err);
+    }
+    
+    const courseObjectId = new mongoose.Types.ObjectId(course_id);
+    const teamObjectId = new mongoose.Types.ObjectId(team_id);
+    const studentObjectId = new mongoose.Types.ObjectId(student_id);
+    
+    // Find the team
+    const team = await Team.findOne({ _id: teamObjectId, course_id: courseObjectId });
+    if (!team) {
+      const err = new Error('Team not found.');
+      err.code = 'NOT_FOUND';
+      err.status = 404;
+      return next(err);
+    }
+    
+    // Find the student
+    const Student = require('../models/Student');
+    const student = await Student.findOne({ _id: studentObjectId, course_id: courseObjectId });
+    if (!student) {
+      const err = new Error('Student not found.');
+      err.code = 'NOT_FOUND';
+      err.status = 404;
+      return next(err);
+    }
+    
+    // Check if student is already in this team
+    if (team.students.includes(studentObjectId)) {
+      const err = new Error('Student is already in this team.');
+      err.code = 'DUPLICATE';
+      err.status = 409;
+      return next(err);
+    }
+    
+    // Remove student from any existing team in this course
+    await Team.updateMany(
+      { course_id: courseObjectId, students: studentObjectId },
+      { $pull: { students: studentObjectId } }
+    );
+    
+    // Add student to the new team
+    team.students.push(studentObjectId);
+    team.student_count = team.students.length;
+    await team.save();
+    
+    // Update student's team_id and group_assignment
+    student.team_id = teamObjectId;
+    student.group_assignment = team.team_name;
+    await student.save();
+    
+    // Update student counts for all teams in this course
+    const allTeams = await Team.find({ course_id: courseObjectId });
+    for (const t of allTeams) {
+      t.student_count = t.students.length;
+      await t.save();
+    }
+    
+    res.status(200).json({ 
+      message: `Student "${student.name}" added to team "${team.team_name}".`,
+      team: team,
+      student: student
+    });
+  } catch (err) {
+    err.code = err.code || 'SERVER_ERROR';
+    err.status = err.status || 500;
+    next(err);
+  }
+};
+
+exports.removeStudentFromTeam = async (req, res, next) => {
+  try {
+    const { course_id, team_id, student_id } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(course_id) || 
+        !mongoose.Types.ObjectId.isValid(team_id) || 
+        !mongoose.Types.ObjectId.isValid(student_id)) {
+      const err = new Error('Invalid course, team, or student ID.');
+      err.code = 'VALIDATION_ERROR';
+      err.status = 400;
+      return next(err);
+    }
+    
+    const courseObjectId = new mongoose.Types.ObjectId(course_id);
+    const teamObjectId = new mongoose.Types.ObjectId(team_id);
+    const studentObjectId = new mongoose.Types.ObjectId(student_id);
+    
+    // Find the team
+    const team = await Team.findOne({ _id: teamObjectId, course_id: courseObjectId });
+    if (!team) {
+      const err = new Error('Team not found.');
+      err.code = 'NOT_FOUND';
+      err.status = 404;
+      return next(err);
+    }
+    
+    // Find the student
+    const Student = require('../models/Student');
+    const student = await Student.findOne({ _id: studentObjectId, course_id: courseObjectId });
+    if (!student) {
+      const err = new Error('Student not found.');
+      err.code = 'NOT_FOUND';
+      err.status = 404;
+      return next(err);
+    }
+    
+    // Check if student is in this team
+    if (!team.students.includes(studentObjectId)) {
+      const err = new Error('Student is not in this team.');
+      err.code = 'NOT_FOUND';
+      err.status = 404;
+      return next(err);
+    }
+    
+    // Remove student from the team
+    team.students.pull(studentObjectId);
+    team.student_count = team.students.length;
+    await team.save();
+    
+    // Update student's team_id and group_assignment
+    student.team_id = null;
+    student.group_assignment = '';
+    await student.save();
+    
+    res.status(200).json({ 
+      message: `Student "${student.name}" removed from team "${team.team_name}".`,
+      team: team,
+      student: student
+    });
+  } catch (err) {
+    err.code = err.code || 'SERVER_ERROR';
+    err.status = err.status || 500;
+    next(err);
+  }
 };

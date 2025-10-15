@@ -50,3 +50,5 @@ router.put('/:course_id/teams/:team_id', authenticateToken, teamController.updat
 router.delete('/:course_id/teams/:team_id', authenticateToken, teamController.deleteTeam);
 router.delete('/:course_id/teams', authenticateToken, teamController.clearAllTeams); // Clear all teams
 router.post('/:course_id/teams/auto-assign', authenticateToken, teamController.autoAssignTeams);
+router.post('/:course_id/teams/:team_id/students/:student_id', authenticateToken, teamController.addStudentToTeam);
+router.delete('/:course_id/teams/:team_id/students/:student_id', authenticateToken, teamController.removeStudentFromTeam);

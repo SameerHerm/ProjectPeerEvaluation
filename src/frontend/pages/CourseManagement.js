@@ -79,6 +79,8 @@ function CourseManagement() {
       // Refresh students list
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
       setStudents(response.data);
+      // Re-apply current search filters
+      handleStudentSearchChange('student_id', studentSearch.student_id);
     } catch (error) {
       if (error.response && error.response.data && error.response.data.error && error.response.data.error.message) {
         setStudentFormError(error.response.data.error.message);
@@ -110,6 +112,8 @@ function CourseManagement() {
       // Refresh students list
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
       setStudents(response.data);
+      // Re-apply current search filters
+      handleStudentSearchChange('student_id', studentSearch.student_id);
     } catch (error) {
       setAlert({ severity: 'error', message: 'Failed to update student' });
     }
@@ -133,6 +137,8 @@ function CourseManagement() {
       // Refresh students list
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
       setStudents(response.data);
+      // Re-apply current search filters
+      handleStudentSearchChange('student_id', studentSearch.student_id);
     } catch (error) {
       setAlert({ severity: 'error', message: `Failed to delete student "${studentName}"` });
     }
@@ -162,6 +168,8 @@ function CourseManagement() {
       // Refresh students list
       const studentsResponse = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
       setStudents(studentsResponse.data);
+      // Re-apply current search filters
+      handleStudentSearchChange('student_id', studentSearch.student_id);
       
       // Reset form
       setCsvFile(null);
@@ -391,29 +399,153 @@ function CourseManagement() {
   const [teamToEdit, setTeamToEdit] = useState(null);
   const [editTeamData, setEditTeamData] = useState({ team_name: '', team_status: 'Active' });
 
+  // Create team dialog state
+  const [createTeamDialogOpen, setCreateTeamDialogOpen] = useState(false);
+  const [newTeamData, setNewTeamData] = useState({ team_name: '', team_status: 'Active' });
+
+  // Manage team students dialog state
+  const [manageStudentsDialogOpen, setManageStudentsDialogOpen] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState(null);
+  const [teamStudents, setTeamStudents] = useState([]);
+  const [availableStudents, setAvailableStudents] = useState([]);
+
+  // Student search state
+  const [studentSearch, setStudentSearch] = useState({
+    student_id: '',
+    name: '',
+    email: '',
+    team: ''
+  });
+  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [showStudentSearch, setShowStudentSearch] = useState(false);
+
+  // Team search state
+  const [teamSearch, setTeamSearch] = useState({
+    team_name: '',
+    team_status: ''
+  });
+  const [filteredTeams, setFilteredTeams] = useState([]);
+  const [showTeamSearch, setShowTeamSearch] = useState(false);
+
   const handleViewStudents = async (course) => {
     setStudentsDialogOpen(true);
     setStudentsCourse(course);
     setStudentsLoading(true);
+    // Reset search when opening dialog
+    setStudentSearch({ student_id: '', name: '', email: '', team: '' });
+    setShowStudentSearch(false); // Default to hidden
     try {
       const response = await api.get(`/courses/${course._id || course.id}/students`);
       setStudents(response.data);
+      setFilteredStudents(response.data); // Initialize filtered list with all students
     } catch (error) {
       setStudents([]);
+      setFilteredStudents([]);
     } finally {
       setStudentsLoading(false);
     }
+  };
+
+  // Filter students based on search criteria
+  const filterStudents = () => {
+    let filtered = students.filter(student => {
+      const matchesId = studentSearch.student_id === '' || 
+        student.student_id.toLowerCase().includes(studentSearch.student_id.toLowerCase());
+      const matchesName = studentSearch.name === '' || 
+        student.name.toLowerCase().includes(studentSearch.name.toLowerCase());
+      const matchesEmail = studentSearch.email === '' || 
+        student.email.toLowerCase().includes(studentSearch.email.toLowerCase());
+      const matchesTeam = studentSearch.team === '' || 
+        (student.group_assignment && student.group_assignment.toLowerCase().includes(studentSearch.team.toLowerCase()));
+      
+      return matchesId && matchesName && matchesEmail && matchesTeam;
+    });
+    
+    setFilteredStudents(filtered);
+  };
+
+  // Clear student search
+  const clearStudentSearch = () => {
+    setStudentSearch({ student_id: '', name: '', email: '', team: '' });
+    setFilteredStudents(students);
+    setShowStudentSearch(false); // Hide search after clearing
+  };
+
+  // Handle search input changes
+  const handleStudentSearchChange = (field, value) => {
+    const newSearch = { ...studentSearch, [field]: value };
+    setStudentSearch(newSearch);
+    
+    // Filter immediately as user types
+    let filtered = students.filter(student => {
+      const matchesId = newSearch.student_id === '' || 
+        student.student_id.toLowerCase().includes(newSearch.student_id.toLowerCase());
+      const matchesName = newSearch.name === '' || 
+        student.name.toLowerCase().includes(newSearch.name.toLowerCase());
+      const matchesEmail = newSearch.email === '' || 
+        student.email.toLowerCase().includes(newSearch.email.toLowerCase());
+      const matchesTeam = newSearch.team === '' || 
+        (student.group_assignment && student.group_assignment.toLowerCase().includes(newSearch.team.toLowerCase()));
+      
+      return matchesId && matchesName && matchesEmail && matchesTeam;
+    });
+    
+    setFilteredStudents(filtered);
+  };
+
+  // Filter teams based on search criteria
+  const filterTeams = () => {
+    let filtered = teams.filter(team => {
+      const matchesName = teamSearch.team_name === '' || 
+        team.team_name.toLowerCase().includes(teamSearch.team_name.toLowerCase());
+      const matchesStatus = teamSearch.team_status === '' || 
+        team.team_status === teamSearch.team_status;
+      
+      return matchesName && matchesStatus;
+    });
+    
+    setFilteredTeams(filtered);
+  };
+
+  // Clear team search
+  const clearTeamSearch = () => {
+    setTeamSearch({ team_name: '', team_status: '' });
+    setFilteredTeams(teams);
+    setShowTeamSearch(false); // Hide search after clearing
+  };
+
+  // Handle team search input changes
+  const handleTeamSearchChange = (field, value) => {
+    const newSearch = { ...teamSearch, [field]: value };
+    setTeamSearch(newSearch);
+    
+    // Filter immediately as user types
+    let filtered = teams.filter(team => {
+      const matchesName = newSearch.team_name === '' || 
+        team.team_name.toLowerCase().includes(newSearch.team_name.toLowerCase());
+      const matchesStatus = newSearch.team_status === '' || 
+        team.team_status === newSearch.team_status;
+      
+      return matchesName && matchesStatus;
+    });
+    
+    setFilteredTeams(filtered);
   };
 
   const handleViewTeams = async (course) => {
     setTeamsDialogOpen(true);
     setTeamsCourse(course);
     setTeamsLoading(true);
+    // Reset search when opening dialog
+    setTeamSearch({ team_name: '', team_status: '' });
+    setShowTeamSearch(false); // Default to hidden
     try {
       const response = await api.get(`/courses/${course._id || course.id}/teams`);
       setTeams(response.data);
+      setFilteredTeams(response.data); // Initialize filtered list with all teams
     } catch (error) {
       setTeams([]);
+      setFilteredTeams([]);
     } finally {
       setTeamsLoading(false);
     }
@@ -430,6 +562,7 @@ function CourseManagement() {
       const response = await api.delete(`/courses/${teamsCourse._id}/teams`);
       setAlert({ severity: 'success', message: response.data.message });
       setTeams([]); // Clear the teams list
+      setFilteredTeams([]); // Clear the filtered teams list
       fetchCoursesWithCounts(); // Refresh the course list to update team count
     } catch (error) {
       console.error('Error clearing teams:', error);
@@ -450,6 +583,8 @@ function CourseManagement() {
       
       // Remove the deleted team from the local state
       setTeams(prevTeams => prevTeams.filter(team => team._id !== teamId));
+      // Re-apply current search filters
+      handleTeamSearchChange('team_name', teamSearch.team_name);
       
       // Refresh the course list to update team count
       fetchCoursesWithCounts();
@@ -489,6 +624,8 @@ function CourseManagement() {
             : team
         )
       );
+      // Re-apply current search filters
+      handleTeamSearchChange('team_name', teamSearch.team_name);
       
       // If team name was changed, refresh students list to show updated team assignments
       if (editTeamData.team_name !== teamToEdit.team_name && students.length > 0) {
@@ -508,6 +645,111 @@ function CourseManagement() {
     } catch (error) {
       console.error('Error updating team:', error);
       setAlert({ severity: 'error', message: 'Failed to update team' });
+    }
+  };
+
+  const handleCreateTeam = async () => {
+    if (!teamsCourse) return;
+    
+    // Validation
+    if (!newTeamData.team_name.trim()) {
+      setAlert({ severity: 'error', message: 'Team name is required' });
+      return;
+    }
+    
+    try {
+      const response = await api.post(`/courses/${teamsCourse._id}/teams`, [newTeamData]);
+      setAlert({ severity: 'success', message: `Team "${newTeamData.team_name}" created successfully` });
+      
+      // Refresh teams list
+      const teamsResponse = await api.get(`/courses/${teamsCourse._id}/teams`);
+      setTeams(teamsResponse.data);
+      // Re-apply current search filters
+      handleTeamSearchChange('team_name', teamSearch.team_name);
+      
+      // Close the dialog and reset form
+      setCreateTeamDialogOpen(false);
+      setNewTeamData({ team_name: '', team_status: 'Active' });
+      
+      // Refresh course counts
+      fetchCoursesWithCounts();
+      
+    } catch (error) {
+      console.error('Error creating team:', error);
+      setAlert({ severity: 'error', message: 'Failed to create team' });
+    }
+  };
+
+  const handleManageTeamStudents = async (team) => {
+    setSelectedTeam(team);
+    setManageStudentsDialogOpen(true);
+    
+    try {
+      // Get all students in the course
+      const allStudentsResponse = await api.get(`/courses/${teamsCourse._id}/students`);
+      const allStudents = allStudentsResponse.data;
+      
+      // Filter students by team
+      const studentsInTeam = allStudents.filter(student => 
+        student.team_id === team._id || student.group_assignment === team.team_name
+      );
+      const studentsNotInTeam = allStudents.filter(student => 
+        !student.team_id || (student.team_id !== team._id && student.group_assignment !== team.team_name)
+      );
+      
+      setTeamStudents(studentsInTeam);
+      setAvailableStudents(studentsNotInTeam);
+    } catch (error) {
+      console.error('Error fetching team students:', error);
+      setAlert({ severity: 'error', message: 'Failed to load team students' });
+    }
+  };
+
+  const handleAddStudentToTeam = async (studentId) => {
+    if (!selectedTeam || !teamsCourse) return;
+    
+    try {
+      await api.post(`/courses/${teamsCourse._id}/teams/${selectedTeam._id}/students/${studentId}`);
+      
+      // Move student from available to team
+      const student = availableStudents.find(s => s._id === studentId);
+      if (student) {
+        setTeamStudents(prev => [...prev, { ...student, team_id: selectedTeam._id, group_assignment: selectedTeam.team_name }]);
+        setAvailableStudents(prev => prev.filter(s => s._id !== studentId));
+      }
+      
+      // Refresh teams list to update counts
+      const teamsResponse = await api.get(`/courses/${teamsCourse._id}/teams`);
+      setTeams(teamsResponse.data);
+      
+      setAlert({ severity: 'success', message: `Student added to ${selectedTeam.team_name}` });
+    } catch (error) {
+      console.error('Error adding student to team:', error);
+      setAlert({ severity: 'error', message: 'Failed to add student to team' });
+    }
+  };
+
+  const handleRemoveStudentFromTeam = async (studentId) => {
+    if (!selectedTeam || !teamsCourse) return;
+    
+    try {
+      await api.delete(`/courses/${teamsCourse._id}/teams/${selectedTeam._id}/students/${studentId}`);
+      
+      // Move student from team to available
+      const student = teamStudents.find(s => s._id === studentId);
+      if (student) {
+        setAvailableStudents(prev => [...prev, { ...student, team_id: null, group_assignment: '' }]);
+        setTeamStudents(prev => prev.filter(s => s._id !== studentId));
+      }
+      
+      // Refresh teams list to update counts
+      const teamsResponse = await api.get(`/courses/${teamsCourse._id}/teams`);
+      setTeams(teamsResponse.data);
+      
+      setAlert({ severity: 'success', message: `Student removed from ${selectedTeam.team_name}` });
+    } catch (error) {
+      console.error('Error removing student from team:', error);
+      setAlert({ severity: 'error', message: 'Failed to remove student from team' });
     }
   };
 
@@ -913,18 +1155,98 @@ function CourseManagement() {
   <Dialog open={studentsDialogOpen} onClose={() => { setStudentsDialogOpen(false); fetchCoursesWithCounts(); }} maxWidth="md" fullWidth>
         <DialogTitle>Manage Students for {studentsCourse?.course_number || studentsCourse?.course_code} {studentsCourse?.course_section || ''} - {studentsCourse?.course_name}</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 2 }}>
-            <Button variant="outlined" size="small" startIcon={<UploadIcon />} onClick={() => setCsvUploadOpen(true)}>
-              Upload CSV
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<FilterListIcon />}
+              onClick={() => setShowStudentSearch(!showStudentSearch)}
+              size="small"
+            >
+              {showStudentSearch ? 'Hide Search' : 'Show Search'}
             </Button>
-            <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={() => setAddStudentOpen(true)}>
-              Add Student
-            </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button variant="outlined" size="small" startIcon={<UploadIcon />} onClick={() => setCsvUploadOpen(true)}>
+                Upload CSV
+              </Button>
+              <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={() => setAddStudentOpen(true)}>
+                Add Student
+              </Button>
+            </Box>
           </Box>
+
+          {/* Student Search Filters */}
+          <Collapse in={showStudentSearch}>
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Search Students ({filteredStudents.length} of {students.length})
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                  <TextField
+                    size="small"
+                    label="Student ID"
+                    value={studentSearch.student_id}
+                    onChange={(e) => handleStudentSearchChange('student_id', e.target.value)}
+                    placeholder="Search by ID..."
+                    sx={{ minWidth: 150, flex: 1 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="Name"
+                    value={studentSearch.name}
+                    onChange={(e) => handleStudentSearchChange('name', e.target.value)}
+                    placeholder="Search by name..."
+                    sx={{ minWidth: 150, flex: 1 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="Email"
+                    value={studentSearch.email}
+                    onChange={(e) => handleStudentSearchChange('email', e.target.value)}
+                    placeholder="Search by email..."
+                    sx={{ minWidth: 150, flex: 1 }}
+                  />
+                  <TextField
+                    size="small"
+                    label="Team"
+                    value={studentSearch.team}
+                    onChange={(e) => handleStudentSearchChange('team', e.target.value)}
+                    placeholder="Search by team..."
+                    sx={{ minWidth: 150, flex: 1 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<SearchIcon />}
+                    onClick={filterStudents}
+                  >
+                    Search
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<ClearIcon />}
+                    onClick={clearStudentSearch}
+                    disabled={!studentSearch.student_id && !studentSearch.name && !studentSearch.email && !studentSearch.team}
+                  >
+                    Clear Search
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Collapse>
           {studentsLoading ? (
             <LinearProgress />
-          ) : students.length === 0 ? (
-            <Typography>No students found for this course.</Typography>
+          ) : filteredStudents.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              {students.length === 0 ? (
+                <Typography>No students found for this course.</Typography>
+              ) : (
+                <Typography>No students match your search criteria.</Typography>
+              )}
+            </Box>
           ) : (
             <TableContainer component={Paper} sx={{ mt: 2 }}>
               <Table>
@@ -938,7 +1260,7 @@ function CourseManagement() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {students.map((student) => (
+                  {filteredStudents.map((student) => (
                     <TableRow key={student.id || student._id}>
                       <TableCell>{student.student_id}</TableCell>
                       <TableCell>{student.name}</TableCell>
@@ -974,11 +1296,78 @@ function CourseManagement() {
       <Dialog open={teamsDialogOpen} onClose={() => { setTeamsDialogOpen(false); fetchCoursesWithCounts(); }} maxWidth="md" fullWidth>
         <DialogTitle>Manage Teams for {teamsCourse?.course_number || teamsCourse?.course_code} {teamsCourse?.course_section || ''} - {teamsCourse?.course_name}</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 2 }}>
-            <Button variant="contained" size="small" startIcon={<AddIcon />}>
-              Create Team
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<FilterListIcon />}
+              onClick={() => setShowTeamSearch(!showTeamSearch)}
+              size="small"
+            >
+              {showTeamSearch ? 'Hide Search' : 'Show Search'}
             </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button 
+                variant="contained" 
+                size="small" 
+                startIcon={<AddIcon />}
+                onClick={() => setCreateTeamDialogOpen(true)}
+              >
+                Create Team
+              </Button>
+            </Box>
           </Box>
+
+          {/* Team Search Filters */}
+          <Collapse in={showTeamSearch}>
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Search Teams ({filteredTeams.length} of {teams.length})
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                  <TextField
+                    size="small"
+                    label="Team Name"
+                    value={teamSearch.team_name}
+                    onChange={(e) => handleTeamSearchChange('team_name', e.target.value)}
+                    placeholder="Search by team name..."
+                    sx={{ minWidth: 200, flex: 1 }}
+                  />
+                  <FormControl size="small" sx={{ minWidth: 150, flex: 1 }}>
+                    <InputLabel>Team Status</InputLabel>
+                    <Select
+                      value={teamSearch.team_status}
+                      label="Team Status"
+                      onChange={(e) => handleTeamSearchChange('team_status', e.target.value)}
+                    >
+                      <MenuItem value="">All</MenuItem>
+                      <MenuItem value="Active">Active</MenuItem>
+                      <MenuItem value="Inactive">Inactive</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<SearchIcon />}
+                    onClick={filterTeams}
+                  >
+                    Search
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<ClearIcon />}
+                    onClick={clearTeamSearch}
+                    disabled={!teamSearch.team_name && !teamSearch.team_status}
+                  >
+                    Clear Search
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Collapse>
 
           {teamsLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -996,16 +1385,16 @@ function CourseManagement() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {teams.length === 0 ? (
+                  {filteredTeams.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} align="center">
                         <Typography color="text.secondary">
-                          No teams found for this course.
+                          {teams.length === 0 ? 'No teams found for this course.' : 'No teams match your search criteria.'}
                         </Typography>
                       </TableCell>
                     </TableRow>
                   ) : (
-                    teams
+                    filteredTeams
                       .sort((a, b) => {
                         // Natural sort that handles both alphabetical and numerical sorting
                         const nameA = (a.team_name || '').toLowerCase();
@@ -1048,7 +1437,12 @@ function CourseManagement() {
                           >
                             <EditIcon />
                           </IconButton>
-                          <IconButton size="small" color="primary" title="View Students">
+                          <IconButton 
+                            size="small" 
+                            color="primary" 
+                            title="Manage Students"
+                            onClick={() => handleManageTeamStudents(team)}
+                          >
                             <PeopleIcon />
                           </IconButton>
                           <IconButton 
@@ -1115,6 +1509,132 @@ function CourseManagement() {
           >
             Save Changes
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Team Dialog */}
+      <Dialog open={createTeamDialogOpen} onClose={() => setCreateTeamDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New Team</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Team Name"
+            value={newTeamData.team_name}
+            onChange={(e) => setNewTeamData({ ...newTeamData, team_name: e.target.value })}
+            margin="normal"
+            required
+            autoFocus
+            placeholder="Team 1"
+          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Team Status</InputLabel>
+            <Select
+              value={newTeamData.team_status}
+              onChange={(e) => setNewTeamData({ ...newTeamData, team_status: e.target.value })}
+              label="Team Status"
+            >
+              <MenuItem value="Active">Active</MenuItem>
+              <MenuItem value="Inactive">Inactive</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateTeamDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleCreateTeam} 
+            variant="contained"
+            disabled={!newTeamData.team_name.trim()}
+          >
+            Create Team
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Manage Team Students Dialog */}
+      <Dialog open={manageStudentsDialogOpen} onClose={() => setManageStudentsDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Manage Students in {selectedTeam?.team_name}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, mt: 2 }}>
+            {/* Students in Team */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Students in Team ({teamStudents.length})
+                </Typography>
+                {teamStudents.length === 0 ? (
+                  <Typography color="text.secondary">No students in this team</Typography>
+                ) : (
+                  <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+                    {teamStudents.map((student) => (
+                      <Box key={student._id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1, borderBottom: '1px solid #eee' }}>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                            {student.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {student.student_id} • {student.email}
+                          </Typography>
+                        </Box>
+                        <IconButton 
+                          size="small" 
+                          color="error"
+                          onClick={() => handleRemoveStudentFromTeam(student._id)}
+                          title="Remove from team"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Available Students */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Available Students ({availableStudents.length})
+                </Typography>
+                {availableStudents.length === 0 ? (
+                  <Typography color="text.secondary">No available students</Typography>
+                ) : (
+                  <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+                    {availableStudents.map((student) => (
+                      <Box key={student._id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1, borderBottom: '1px solid #eee' }}>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                            {student.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {student.student_id} • {student.email}
+                          </Typography>
+                          {student.group_assignment && (
+                            <Typography variant="caption" color="warning.main" sx={{ display: 'block' }}>
+                              Currently in: {student.group_assignment}
+                            </Typography>
+                          )}
+                        </Box>
+                        <IconButton 
+                          size="small" 
+                          color="primary"
+                          onClick={() => handleAddStudentToTeam(student._id)}
+                          title="Add to team"
+                        >
+                          <AddIcon />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setManageStudentsDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
                         <IconButton
