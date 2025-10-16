@@ -25,6 +25,20 @@ mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://
   .then(() => console.log('✅ MongoDB connected'))
   .catch(err => console.error('❌ MongoDB connection error:', err));
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({ 
+    message: '🎓 Peer Evaluation System API', 
+    status: 'Running',
+    endpoints: [
+      'POST /api/auth/login - User login',
+      'GET /api/courses - List courses',
+      'POST /api/evaluate - Submit evaluation',
+      'GET /api/ai - AI features'
+    ]
+  });
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/courses', require('./routes/courses'));
