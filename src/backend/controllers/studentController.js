@@ -563,3 +563,57 @@ exports.uploadRoster = async (req, res, next) => {
     next(err);
   }
 };
+
+// Delete ALL students from a course
+exports.deleteAllStudents = async (req, res, next) => {
+  try {
+    const { course_id } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(course_id)) {
+      const err = new Error('Invalid course ID.');
+      err.code = 'VALIDATION_ERROR';
+      err.status = 400;
+      return next(err);
+    }
+
+    const courseObjectId = new mongoose.Types.ObjectId(course_id);
+
+    // Get count of students before deletion
+    const studentCount = await Student.countDocuments({ course_id: courseObjectId });
+    
+    if (studentCount === 0) {
+      return res.status(200).json({ 
+        message: 'No students to delete.',
+        deleted_count: 0 
+      });
+    }
+
+    // Delete all students in the course
+    const deleteResult = await Student.deleteMany({ course_id: courseObjectId });
+
+    // Delete all teams in the course (since they'll be empty)
+    const Team = require('../models/Team');
+    const teamsDeleteResult = await Team.deleteMany({ course_id: courseObjectId });
+
+    // Update course student_count and team_count to 0
+    const Course = require('../models/Course');
+    await Course.findByIdAndUpdate(courseObjectId, { 
+      student_count: 0,
+      team_count: 0 
+    });
+
+    console.log(`Deleted ${deleteResult.deletedCount} students and ${teamsDeleteResult.deletedCount} teams from course ${course_id}`);
+
+    res.status(200).json({ 
+      message: `Successfully deleted all students from course.`,
+      deleted_students: deleteResult.deletedCount,
+      deleted_teams: teamsDeleteResult.deletedCount
+    });
+
+  } catch (err) {
+    console.error('Error deleting all students:', err);
+    err.code = err.code || 'SERVER_ERROR';
+    err.status = err.status || 500;
+    next(err);
+  }
+};

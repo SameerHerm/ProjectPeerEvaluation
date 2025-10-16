@@ -31,8 +31,8 @@ router.post('/:course_id/students', authenticateToken, studentController.addStud
 router.put('/:course_id/students/:student_id', authenticateToken, studentController.updateStudent);
 router.delete('/:course_id/students/:student_id', authenticateToken, studentController.deleteStudent);
 router.post('/:course_id/students/bulk-delete', authenticateToken, studentController.bulkDeleteStudents);
+router.delete('/:course_id/students', authenticateToken, studentController.deleteAllStudents); // Delete ALL students
 
-module.exports = router;
 // Reporting endpoints (subroutes)
 router.get('/:course_id/reports', authenticateToken, reportController.getCourseReport);
 router.get('/:course_id/reports/download', authenticateToken, reportController.downloadReport);
@@ -52,3 +52,5 @@ router.delete('/:course_id/teams', authenticateToken, teamController.clearAllTea
 router.post('/:course_id/teams/auto-assign', authenticateToken, teamController.autoAssignTeams);
 router.post('/:course_id/teams/:team_id/students/:student_id', authenticateToken, teamController.addStudentToTeam);
 router.delete('/:course_id/teams/:team_id/students/:student_id', authenticateToken, teamController.removeStudentFromTeam);
+
+module.exports = router;

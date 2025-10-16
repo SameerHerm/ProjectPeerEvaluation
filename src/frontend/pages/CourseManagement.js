@@ -65,6 +65,10 @@ function CourseManagement() {
   const [csvUploadError, setCsvUploadError] = useState('');
   const [csvUploadResults, setCsvUploadResults] = useState(null);
 
+  // State for delete all students
+  const [deleteAllStudentsOpen, setDeleteAllStudentsOpen] = useState(false);
+  const [deleteAllStudentsLoading, setDeleteAllStudentsLoading] = useState(false);
+
   // Handler stubs for add, edit, delete
   const handleAddStudent = async () => {
     setStudentFormError('');
@@ -193,6 +197,46 @@ function CourseManagement() {
     } else {
       setCsvUploadError('Please select a valid CSV file');
       setCsvFile(null);
+    }
+  };
+
+  // Delete All Students handler
+  const handleDeleteAllStudents = async () => {
+    if (!studentsCourse) return;
+    
+    setDeleteAllStudentsLoading(true);
+    
+    try {
+      const response = await api.delete(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
+      
+      setAlert({ 
+        severity: 'success', 
+        message: `${response.data.message} (${response.data.deleted_students} students, ${response.data.deleted_teams} teams deleted)` 
+      });
+      
+      // Clear students and teams data immediately
+      setStudents([]);
+      setFilteredStudents([]);
+      setTeams([]);
+      setFilteredTeams([]);
+      
+      // Clear search filters
+      setStudentSearch({ student_id: '', name: '', email: '', team: '' });
+      setTeamSearch({ team_name: '' });
+      setShowStudentSearch(false);
+      setShowTeamSearch(false);
+      
+      // Close the delete confirmation dialog
+      setDeleteAllStudentsOpen(false);
+      
+      // Refresh the main courses list to update counts
+      await fetchCoursesWithCounts();
+      
+    } catch (error) {
+      const errorMessage = error.response?.data?.error?.message || 'Failed to delete all students';
+      setAlert({ severity: 'error', message: errorMessage });
+    } finally {
+      setDeleteAllStudentsLoading(false);
     }
   };
 // ...existing code...
@@ -384,7 +428,6 @@ function CourseManagement() {
     </Dialog>
   );
 
-// ...existing code...
   const [studentsDialogOpen, setStudentsDialogOpen] = useState(false);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [students, setStudents] = useState([]);
@@ -972,11 +1015,68 @@ function CourseManagement() {
     navigate('/');
   };
 
+  // Delete All Students Confirmation Dialog
+  const deleteAllStudentsDialog = (
+    <Dialog 
+      open={deleteAllStudentsOpen} 
+      onClose={() => setDeleteAllStudentsOpen(false)} 
+      maxWidth="sm" 
+      fullWidth
+    >
+      <DialogTitle>Delete All Students</DialogTitle>
+      <DialogContent>
+        <Typography variant="body1" sx={{ mb: 2 }}>
+          Are you sure you want to delete ALL students from this course?
+        </Typography>
+        <Typography variant="body2" color="error" sx={{ mb: 2 }}>
+          This action will:
+        </Typography>
+        <Box component="ul" sx={{ mt: 1, pl: 2, color: 'error.main' }}>
+          <li>Delete all {students.length} students from the course</li>
+          <li>Delete all teams (since they will be empty)</li>
+          <li>This action cannot be undone</li>
+        </Box>
+        <Typography variant="body2" sx={{ mt: 2, fontWeight: 'bold' }}>
+          Type "DELETE ALL" to confirm:
+        </Typography>
+        <TextField
+          fullWidth
+          size="small"
+          sx={{ mt: 1 }}
+          placeholder="Type DELETE ALL to confirm"
+          id="delete-confirmation"
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setDeleteAllStudentsOpen(false)}>
+          Cancel
+        </Button>
+        <Button 
+          onClick={() => {
+            const confirmationInput = document.getElementById('delete-confirmation');
+            if (confirmationInput.value === 'DELETE ALL') {
+              handleDeleteAllStudents();
+            } else {
+              setAlert({ severity: 'error', message: 'Please type "DELETE ALL" to confirm' });
+            }
+          }}
+          variant="contained" 
+          color="error"
+          disabled={deleteAllStudentsLoading || students.length === 0}
+          startIcon={<DeleteIcon />}
+        >
+          {deleteAllStudentsLoading ? 'Deleting...' : 'Delete All Students'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   return (
     <div className={styles.courseManagementContainer}>
       {addStudentDialog}
       {editStudentDialog}
       {csvUploadDialog}
+      {deleteAllStudentsDialog}
       <Box display="flex" justifyContent="flex-end" mb={2}>
         <Button variant="outlined" className={styles.logoutButton} color="secondary" onClick={handleLogout}>
           Logout
@@ -1290,6 +1390,16 @@ function CourseManagement() {
           )}
         </DialogContent>
         <DialogActions>
+          <Button 
+            onClick={() => setDeleteAllStudentsOpen(true)}
+            color="error"
+            variant="outlined"
+            disabled={!students || students.length === 0}
+            startIcon={<DeleteIcon />}
+          >
+            Delete All Students
+          </Button>
+          <Box sx={{ flex: 1 }} />
           <Button onClick={() => { setStudentsDialogOpen(false); fetchCoursesWithCounts(); }}>Close</Button>
         </DialogActions>
       </Dialog>
