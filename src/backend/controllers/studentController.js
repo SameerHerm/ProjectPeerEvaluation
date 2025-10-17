@@ -365,12 +365,12 @@ exports.uploadRoster = async (req, res, next) => {
           return;
         }
         // Prepare student object (evaluation_token will be generated when evaluations are sent)
-        const teamAssignment = row.team_name || row.group_assignment || row.group || null;
+        const teamAssignment = (row.team_name || row.group_assignment || row.group || '').trim() || null;
         console.log('Final team assignment for student:', row.student_id, '=', teamAssignment);
         studentsToCreate.push({
-          student_id: row.student_id,
-          name: row.name,
-          email: row.email,
+          student_id: row.student_id.trim(),
+          name: row.name.trim(),
+          email: row.email.trim(),
           group_assignment: teamAssignment, // Primary: team_name, fallback for backward compatibility
           course_id
         });
@@ -468,53 +468,60 @@ exports.uploadRoster = async (req, res, next) => {
           let created = [];
           if (filteredToCreate.length > 0) {
             console.log('Starting student insertion...');
-            created = await Student.insertMany(filteredToCreate, { ordered: false });
-            console.log(`✅ Inserted ${created.length} new students`);
-          }
-          
-          // Step 3: Get all students that need team linking (both new and existing)
-          console.log('Starting team linking process...');
-          const allStudentsForLinking = [];
-          
-          // Add newly created students
-          allStudentsForLinking.push(...created);
-          
-          // Add existing students that need team updates
-          if (studentsToUpdate.length > 0) {
-            const existingStudentsFromDB = await Student.find({
-              course_id: courseObjectId,
-              student_id: { $in: studentsToUpdate.map(s => s.student_id) }
-            });
-            // Merge with team assignment data
-            existingStudentsFromDB.forEach(dbStudent => {
-              const csvData = studentsToUpdate.find(s => s.student_id === dbStudent.student_id);
-              if (csvData) {
-                dbStudent.group_assignment = csvData.group_assignment;
-                allStudentsForLinking.push(dbStudent);
-              }
-            });
-          }
-          
-          // Step 4: Link all students to teams
-          for (const student of allStudentsForLinking) {
             try {
-              if (student.group_assignment && createdTeams[student.group_assignment]) {
-                const teamId = createdTeams[student.group_assignment];
-                console.log(`Linking student ${student.student_id} to team ${student.group_assignment} (ID: ${teamId})`);
+              created = await Student.insertMany(filteredToCreate, { ordered: false });
+              console.log(`✅ Inserted ${created.length} new students`);
+            } catch (insertError) {
+              console.error('❌ Error inserting students:', insertError);
+              // Try to get partial results
+              const insertedStudents = await Student.find({
+                course_id: courseObjectId,
+                student_id: { $in: filteredToCreate.map(s => s.student_id) }
+              });
+              created = insertedStudents;
+              console.log(`⚠️ Partial insertion: ${created.length} students were created despite errors`);
+            }
+          }
+          
+          // Step 3: Link all students to teams (use original CSV data for team assignments)
+          console.log('Starting team linking process...');
+          
+          // Create a map of student_id to team assignment from CSV data
+          const studentTeamMap = {};
+          studentsToCreate.forEach(student => {
+            if (student.group_assignment) {
+              studentTeamMap[student.student_id] = student.group_assignment;
+            }
+          });
+          
+          console.log('Student team mapping:', studentTeamMap);
+          
+          // Get all students in the course to link them
+          const allStudentsInCourse = await Student.find({ course_id: courseObjectId });
+          
+          // Step 4: Link students to teams using the CSV mapping
+          for (const student of allStudentsInCourse) {
+            try {
+              const teamAssignment = studentTeamMap[student.student_id];
+              if (teamAssignment && createdTeams[teamAssignment]) {
+                const teamId = createdTeams[teamAssignment];
+                console.log(`Linking student ${student.student_id} to team ${teamAssignment} (ID: ${teamId})`);
                 
                 // Update student with team_id and group_assignment
                 await Student.findByIdAndUpdate(student._id, { 
                   team_id: teamId,
-                  group_assignment: student.group_assignment 
+                  group_assignment: teamAssignment 
                 });
                 
                 // Add student to team's students array
                 await Team.findByIdAndUpdate(teamId, {
                   $addToSet: { students: student._id }
                 });
-                console.log(`✅ Linked student ${student.student_id} to team ${student.group_assignment}`);
+                console.log(`✅ Linked student ${student.student_id} to team ${teamAssignment}`);
+              } else if (studentTeamMap[student.student_id]) {
+                console.log(`Student ${student.student_id} has team assignment but team not found:`, teamAssignment);
               } else {
-                console.log(`Student ${student.student_id} has no team assignment or team not found`);
+                console.log(`Student ${student.student_id} has no team assignment in CSV`);
               }
             } catch (linkError) {
               console.error(`❌ Error linking student ${student.student_id}:`, linkError);

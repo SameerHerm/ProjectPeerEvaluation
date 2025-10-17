@@ -82,8 +82,8 @@ function CourseManagement() {
   const [testEvaluationData, setTestEvaluationData] = useState(null);
   const [testEvaluationLoading, setTestEvaluationLoading] = useState(false);
 
-  // State for sending evaluations
-  const [sendingEvaluations, setSendingEvaluations] = useState(false);
+  // State for sending evaluations (per course)
+  const [sendingEvaluations, setSendingEvaluations] = useState({});
 
   // State for resetting evaluation state
   const [resettingEvaluations, setResettingEvaluations] = useState(false);
@@ -1018,7 +1018,7 @@ function CourseManagement() {
   };
 
   const handleSendInvitations = async (courseId) => {
-    setSendingEvaluations(true);
+    setSendingEvaluations(prev => ({ ...prev, [courseId]: true }));
     
     // First check if backend is reachable
     try {
@@ -1037,7 +1037,7 @@ function CourseManagement() {
       console.log('Backend is reachable, proceeding with evaluation send...');
     } catch (connectError) {
       console.error('Backend connectivity test failed:', connectError);
-      setSendingEvaluations(false);
+      setSendingEvaluations(prev => ({ ...prev, [courseId]: false }));
       setAlert({
         severity: 'error',
         message: '❌ Cannot connect to backend server. Please check if the backend is running.'
@@ -1085,7 +1085,7 @@ function CourseManagement() {
         message: `❌ ${errorMessage}` 
       });
     } finally {
-      setSendingEvaluations(false);
+      setSendingEvaluations(prev => ({ ...prev, [courseId]: false }));
     }
   };
 
@@ -1950,9 +1950,9 @@ function CourseManagement() {
                           color="primary"
                           onClick={() => handleSendInvitations(course._id || course.id)}
                           title="Send Evaluations"
-                          disabled={sendingEvaluations}
+                          disabled={sendingEvaluations[course._id || course.id]}
                         >
-                          {sendingEvaluations ? <CircularProgress size={20} /> : <SendIcon />}
+                          {sendingEvaluations[course._id || course.id] ? <CircularProgress size={20} /> : <SendIcon />}
                         </IconButton>
                         <IconButton
                           size="small"
@@ -1968,12 +1968,14 @@ function CourseManagement() {
                           onClick={() => handleTestEvaluation(course)}
                           title="Test Evaluation Form"
                         >
-                          <AssessmentIcon />
+                          <Typography variant="h6" component="span" sx={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
+                            T
+                          </Typography>
                         </IconButton>
                         <IconButton
                           size="small"
                           color="primary"
-                          onClick={() => navigate(`/courses/${course.id}/reports`)}
+                          onClick={() => navigate(`/reports?course=${course._id || course.id}`)}
                           title="View Reports"
                         >
                           <AssessmentIcon />
@@ -2235,14 +2237,14 @@ function CourseManagement() {
                   <Button
                     variant="contained"
                     color="primary"
-                    startIcon={sendingEvaluations ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                    startIcon={sendingEvaluations[selectedCourseForEval._id || selectedCourseForEval.id] ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
                     onClick={() => {
                       handleSendInvitations(selectedCourseForEval._id || selectedCourseForEval.id);
                     }}
                     size="large"
-                    disabled={sendingEvaluations}
+                    disabled={sendingEvaluations[selectedCourseForEval._id || selectedCourseForEval.id]}
                   >
-                    {sendingEvaluations ? 'Sending Evaluations...' : 'Send Evaluations Now'}
+                    {sendingEvaluations[selectedCourseForEval._id || selectedCourseForEval.id] ? 'Sending Evaluations...' : 'Send Evaluations Now'}
                   </Button>
                 </Alert>
               ) : (

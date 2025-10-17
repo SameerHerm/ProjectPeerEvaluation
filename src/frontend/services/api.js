@@ -44,6 +44,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     console.log('API Response received:', response.status, response.config.method?.toUpperCase(), response.config.url);
+    // Log Render service info from headers
+    if (response.headers['rndr-id']) {
+      console.log('Render Service ID:', response.headers['rndr-id']);
+    }
+    if (response.headers['server']) {
+      console.log('Server Info:', response.headers['server']);
+    }
     return response;
   },
   (error) => {
