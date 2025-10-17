@@ -1037,6 +1037,9 @@ function CourseManagement() {
     
     try {
       console.log(`Sending evaluations for course: ${courseId}`);
+      console.log('API Base URL:', api.defaults.baseURL);
+      console.log('Full URL:', `${api.defaults.baseURL}/courses/${courseId}/evaluations/send`);
+      
       const response = await api.post(`/courses/${courseId}/evaluations/send`);
       setAlert({ 
         severity: 'success', 
