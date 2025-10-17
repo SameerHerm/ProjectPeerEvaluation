@@ -20,7 +20,7 @@ import {
   Grid
 } from '@mui/material';
 import { CheckCircle as CheckIcon, Person as PersonIcon } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../services/api';
 
 function StudentEvaluation() {
   const { token } = useParams();
@@ -38,7 +38,7 @@ function StudentEvaluation() {
   useEffect(() => {
     const loadEvaluationForm = async () => {
       try {
-        const response = await axios.get(`/api/evaluate/${token}`);
+        const response = await api.get(`/evaluate/${token}`);
         
         if (response.data.completed) {
           setSuccess(true);
@@ -134,7 +134,7 @@ function StudentEvaluation() {
     setError('');
 
     try {
-      await axios.post(`/api/evaluate/${token}`, {
+      await api.post(`/evaluate/${token}`, {
         evaluations: evaluationArray
       });
       
