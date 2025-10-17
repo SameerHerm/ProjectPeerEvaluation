@@ -85,6 +85,9 @@ function CourseManagement() {
   // State for sending evaluations
   const [sendingEvaluations, setSendingEvaluations] = useState(false);
 
+  // State for resetting evaluation state
+  const [resettingEvaluations, setResettingEvaluations] = useState(false);
+
   // Handler stubs for add, edit, delete
   const handleAddStudent = async () => {
     setStudentFormError('');
@@ -1016,7 +1019,24 @@ function CourseManagement() {
 
   const handleSendInvitations = async (courseId) => {
     setSendingEvaluations(true);
+    
+    // First check if backend is reachable
     try {
+      console.log('Testing backend connectivity...');
+      await api.get('/'); // Test basic connectivity
+      console.log('Backend is reachable, proceeding with evaluation send...');
+    } catch (connectError) {
+      console.error('Backend connectivity test failed:', connectError);
+      setSendingEvaluations(false);
+      setAlert({
+        severity: 'error',
+        message: '❌ Cannot connect to backend server. Please check if the backend is running.'
+      });
+      return;
+    }
+    
+    try {
+      console.log(`Sending evaluations for course: ${courseId}`);
       const response = await api.post(`/courses/${courseId}/evaluations/send`);
       setAlert({ 
         severity: 'success', 
@@ -1030,13 +1050,56 @@ function CourseManagement() {
       }, 1000);
     } catch (error) {
       console.error('Send evaluations error:', error);
-      const errorMessage = error.response?.data?.message || error.response?.data?.error?.message || 'Failed to send evaluation invitations';
+      
+      let errorMessage = 'Failed to send evaluation invitations';
+      
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out - server may be busy processing emails. Please try again.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error - check backend logs for SMTP configuration issues';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Authentication failed - please log in again';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error?.message) {
+        errorMessage = error.response.data.error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       setAlert({ 
         severity: 'error', 
         message: `❌ ${errorMessage}` 
       });
     } finally {
       setSendingEvaluations(false);
+    }
+  };
+
+  const handleResetEvaluationState = async (courseId) => {
+    setResettingEvaluations(true);
+    try {
+      const response = await api.delete(`/courses/${courseId}/evaluations/reset`);
+      setAlert({
+        severity: 'success',
+        message: `✅ ${response.data.message} - Cleared ${response.data.tokens_cleared} tokens and ${response.data.evaluations_deleted} evaluations`
+      });
+      
+      // Refresh evaluation status after reset
+      setTimeout(() => {
+        const course = { _id: courseId, id: courseId };
+        handleViewEvaluationStatus(course);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Reset evaluation state error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to reset evaluation state';
+      setAlert({
+        severity: 'error',
+        message: `❌ ${errorMessage}`
+      });
+    } finally {
+      setResettingEvaluations(false);
     }
   };
 
@@ -2314,6 +2377,14 @@ function CourseManagement() {
           )}
         </DialogContent>
         <DialogActions>
+          <Button 
+            onClick={() => handleResetEvaluationState(selectedCourseForEval._id || selectedCourseForEval.id)}
+            color="warning"
+            disabled={resettingEvaluations}
+            startIcon={resettingEvaluations ? <CircularProgress size={16} /> : <ClearIcon />}
+          >
+            {resettingEvaluations ? 'Resetting...' : 'Reset Evaluation State'}
+          </Button>
           <Button onClick={() => setEvaluationStatusOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>

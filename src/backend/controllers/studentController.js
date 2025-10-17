@@ -31,8 +31,6 @@ exports.addStudent = async (req, res, next) => {
       err.status = 409;
       return next(err);
     }
-    // Generate evaluation token
-    const evaluation_token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     
     let teamId = null;
     
@@ -74,8 +72,8 @@ exports.addStudent = async (req, res, next) => {
       email, 
       course_id, 
       group_assignment: group_assignment || null,
-      team_id: teamId,
-      evaluation_token 
+      team_id: teamId
+      // evaluation_token will be generated when evaluations are sent
     });
     await student.save();
     
@@ -366,8 +364,7 @@ exports.uploadRoster = async (req, res, next) => {
           errors.push(`Missing required fields in row: ${JSON.stringify(row)}`);
           return;
         }
-        // Prepare student object
-        const evaluation_token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        // Prepare student object (evaluation_token will be generated when evaluations are sent)
         const teamAssignment = row.team_name || row.group_assignment || row.group || null;
         console.log('Final team assignment for student:', row.student_id, '=', teamAssignment);
         studentsToCreate.push({
@@ -375,15 +372,29 @@ exports.uploadRoster = async (req, res, next) => {
           name: row.name,
           email: row.email,
           group_assignment: teamAssignment, // Primary: team_name, fallback for backward compatibility
-          course_id,
-          evaluation_token
+          course_id
         });
       })
       .on('end', async () => {
         console.log('CSV parsing completed. Total students parsed:', studentsToCreate.length);
         try {
-          // Deduplicate: filter out students that already exist in this course
           const courseObjectId = new mongoose.Types.ObjectId(course_id);
+          
+          // Clear evaluation state for fresh start when uploading CSV
+          console.log('Clearing evaluation state for course:', course_id);
+          
+          // Clear evaluation tokens from all existing students in this course
+          await Student.updateMany(
+            { course_id: courseObjectId }, 
+            { $unset: { evaluation_token: 1 } }
+          );
+          
+          // Clear all evaluation records for this course
+          const Evaluation = require('../models/Evaluation');
+          const deletedEvaluations = await Evaluation.deleteMany({ course_id: courseObjectId });
+          console.log(`Cleared ${deletedEvaluations.deletedCount} evaluation records`);
+          
+          // Deduplicate: filter out students that already exist in this course
           const existingStudents = await Student.find({
             course_id: courseObjectId,
             student_id: { $in: studentsToCreate.map(s => s.student_id) }
@@ -546,11 +557,13 @@ exports.uploadRoster = async (req, res, next) => {
           console.log(`Team names: ${Object.keys(createdTeams).join(', ')}`);
           
           res.status(200).json({
-            message: `Roster processed successfully. ${created.length} new students added, ${studentsToUpdate.length} existing students updated.`,
+            message: `Roster processed successfully. ${created.length} new students added, ${studentsToUpdate.length} existing students updated. Evaluation state reset for fresh start.`,
             students: created.map(s => s.student_id),
             students_updated: studentsToUpdate.map(s => s.student_id),
             teams_created: teamsCreatedCount,
             team_names: Object.keys(createdTeams),
+            evaluations_cleared: deletedEvaluations.deletedCount,
+            evaluation_state_reset: true,
             errors
           });
         } catch (insertErr) {
@@ -625,6 +638,48 @@ exports.deleteAllStudents = async (req, res, next) => {
 
   } catch (err) {
     console.error('Error deleting all students:', err);
+    err.code = err.code || 'SERVER_ERROR';
+    err.status = err.status || 500;
+    next(err);
+  }
+};
+
+/**
+ * Reset evaluation state for a course (clear tokens and evaluation records)
+ */
+exports.resetEvaluationState = async (req, res, next) => {
+  try {
+    const { course_id } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(course_id)) {
+      const err = new Error('Invalid course ID.');
+      err.code = 'VALIDATION_ERROR';
+      err.status = 400;
+      return next(err);
+    }
+
+    const courseObjectId = new mongoose.Types.ObjectId(course_id);
+
+    // Clear evaluation tokens from all students in this course
+    const tokenUpdateResult = await Student.updateMany(
+      { course_id: courseObjectId }, 
+      { $unset: { evaluation_token: 1 } }
+    );
+
+    // Clear all evaluation records for this course
+    const Evaluation = require('../models/Evaluation');
+    const evaluationDeleteResult = await Evaluation.deleteMany({ course_id: courseObjectId });
+
+    console.log(`Reset evaluation state for course ${course_id}: cleared ${tokenUpdateResult.modifiedCount} tokens, deleted ${evaluationDeleteResult.deletedCount} evaluations`);
+
+    res.status(200).json({
+      message: 'Evaluation state reset successfully.',
+      tokens_cleared: tokenUpdateResult.modifiedCount,
+      evaluations_deleted: evaluationDeleteResult.deletedCount
+    });
+
+  } catch (err) {
+    console.error('Error resetting evaluation state:', err);
     err.code = err.code || 'SERVER_ERROR';
     err.status = err.status || 500;
     next(err);

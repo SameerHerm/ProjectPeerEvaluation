@@ -13,6 +13,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 60000, // 60 second timeout for production
 });
 
 // Attach JWT token from localStorage/sessionStorage to every request
@@ -30,6 +31,28 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => {
+    console.log('API Response received:', response.status, response.config.method?.toUpperCase(), response.config.url);
+    return response;
+  },
+  (error) => {
+    console.error('API Error:', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      url: error.config?.url,
+      method: error.config?.method?.toUpperCase(),
+      timeout: error.code === 'ECONNABORTED'
+    });
+    
+    if (error.code === 'ECONNABORTED') {
+      console.error('Request timed out - server may be overloaded or unresponsive');
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // Fetch a single course by ID
 export const getCourseById = async (courseId) => {

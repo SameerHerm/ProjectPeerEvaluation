@@ -43,6 +43,7 @@ router.post('/:course_id/reports/generate', authenticateToken, reportController.
 router.post('/:course_id/evaluations/send', authenticateToken, evaluationController.sendEvaluations);
 router.get('/:course_id/evaluations/status', authenticateToken, evaluationController.evaluationStatus);
 router.post('/:course_id/evaluations/remind', authenticateToken, evaluationController.remindEvaluations);
+router.delete('/:course_id/evaluations/reset', authenticateToken, studentController.resetEvaluationState);
 // Team management endpoints (subroutes)
 router.get('/:course_id/teams', authenticateToken, teamController.listTeams);
 router.post('/:course_id/teams', authenticateToken, teamController.createTeams);

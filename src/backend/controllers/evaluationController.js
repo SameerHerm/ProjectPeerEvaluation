@@ -35,9 +35,22 @@ exports.sendEvaluations = async (req, res, next) => {
     let emailsSent = 0;
     let failedEmails = [];
 
+    console.log(`Starting to send evaluations to ${students.length} students for course ${course_id}`);
+
     // Send email to each student
     for (const student of students) {
       try {
+        console.log(`Processing student: ${student.name} (${student.email})`);
+        
+        // Generate evaluation token if student doesn't have one
+        if (!student.evaluation_token) {
+          console.log(`Generating token for student: ${student.name}`);
+          const evaluationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          await Student.findByIdAndUpdate(student._id, { evaluation_token: evaluationToken });
+          student.evaluation_token = evaluationToken;
+        }
+
+        console.log(`Sending email to: ${student.email}`);
         const result = await sendEvaluationInvitation(
           student, 
           course, 
@@ -45,6 +58,8 @@ exports.sendEvaluations = async (req, res, next) => {
           process.env.FRONTEND_URL || 'http://localhost:3000',
           deadline
         );
+        
+        console.log(`Email result for ${student.email}:`, result.success ? 'SUCCESS' : `FAILED - ${result.error}`);
         
         if (result.success) {
           emailsSent++;
@@ -55,6 +70,8 @@ exports.sendEvaluations = async (req, res, next) => {
         failedEmails.push(`${student.name} (${student.email}): ${error.message}`);
       }
     }
+
+    console.log(`Evaluation sending completed. Sent: ${emailsSent}/${students.length}, Failed: ${failedEmails.length}`);
 
     res.status(200).json({
       message: `Evaluation invitations sent successfully.`,
@@ -83,9 +100,8 @@ exports.evaluationStatus = async (req, res, next) => {
     const students = await Student.find({ course_id });
     const total = students.length;
 
-    // Check if evaluations have been sent by looking for any evaluation records
-    // OR if students have evaluation tokens (indicating send attempt)
-    const anyEvaluationExists = await Evaluation.findOne({ course_id });
+    // Check if evaluations have been sent by looking for students with evaluation tokens
+    // (tokens are only generated when evaluations are actually sent)
     const hasStudentsWithTokens = students.length > 0 && students.some(s => s.evaluation_token);
     
     // If no students exist, return empty state
@@ -100,8 +116,8 @@ exports.evaluationStatus = async (req, res, next) => {
       });
     }
     
-    // If no evaluations exist AND students don't have tokens, evaluations haven't been sent
-    if (!anyEvaluationExists && !hasStudentsWithTokens) {
+    // If students don't have tokens, evaluations haven't been sent
+    if (!hasStudentsWithTokens) {
       return res.status(200).json({
         total_count: 0,
         completed_count: 0,
