@@ -44,6 +44,15 @@ app.get('/', (req, res) => {
   });
 });
 
+// Health check endpoint for API
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK',
+    message: 'Backend API is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/courses', require('./routes/courses'));

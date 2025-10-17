@@ -1023,7 +1023,7 @@ function CourseManagement() {
     // First check if backend is reachable
     try {
       console.log('Testing backend connectivity...');
-      await api.get('/'); // Test basic connectivity with root endpoint
+      await api.get('/health'); // Test connectivity with health check endpoint
       console.log('Backend is reachable, proceeding with evaluation send...');
     } catch (connectError) {
       console.error('Backend connectivity test failed:', connectError);

@@ -7,8 +7,8 @@ const isProduction = process.env.NODE_ENV === 'production' ||
                     window.location.hostname !== 'localhost';
 
 const API_BASE_URL = isProduction
-  ? 'https://peer-evaluation-backend.onrender.com'
-  : 'http://localhost:5000';
+  ? 'https://peer-evaluation-backend.onrender.com/api'
+  : 'http://localhost:5000/api';
 
 console.log('Environment Detection:', {
   NODE_ENV: process.env.NODE_ENV,
