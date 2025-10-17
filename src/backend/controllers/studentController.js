@@ -297,6 +297,14 @@ exports.bulkDeleteStudents = async (req, res, next) => {
     // Delete the students
     const result = await Student.deleteMany({ _id: { $in: student_ids }, course_id });
 
+    // Clean up related evaluations for deleted students
+    const Evaluation = require('../models/Evaluation');
+    const evaluationCleanup = await Evaluation.deleteMany({ 
+      student_id: { $in: student_ids },
+      course_id: course_id 
+    });
+    console.log(`Deleted ${evaluationCleanup.deletedCount} evaluations for deleted students`);
+
     // Update affected teams
     if (teamsToUpdate.size > 0) {
       const Team = require('../models/Team');
@@ -591,6 +599,10 @@ exports.deleteAllStudents = async (req, res, next) => {
     // Delete all students in the course
     const deleteResult = await Student.deleteMany({ course_id: courseObjectId });
 
+    // Delete all related evaluations
+    const Evaluation = require('../models/Evaluation');
+    const evaluationsDeleteResult = await Evaluation.deleteMany({ course_id: courseObjectId });
+
     // Delete all teams in the course (since they'll be empty)
     const Team = require('../models/Team');
     const teamsDeleteResult = await Team.deleteMany({ course_id: courseObjectId });
@@ -602,11 +614,12 @@ exports.deleteAllStudents = async (req, res, next) => {
       team_count: 0 
     });
 
-    console.log(`Deleted ${deleteResult.deletedCount} students and ${teamsDeleteResult.deletedCount} teams from course ${course_id}`);
+    console.log(`Deleted ${deleteResult.deletedCount} students, ${evaluationsDeleteResult.deletedCount} evaluations, and ${teamsDeleteResult.deletedCount} teams from course ${course_id}`);
 
     res.status(200).json({ 
-      message: `Successfully deleted all students from course.`,
+      message: `Successfully deleted all students, evaluations, and teams from course.`,
       deleted_students: deleteResult.deletedCount,
+      deleted_evaluations: evaluationsDeleteResult.deletedCount,
       deleted_teams: teamsDeleteResult.deletedCount
     });
 
