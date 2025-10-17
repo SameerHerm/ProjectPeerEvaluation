@@ -36,7 +36,6 @@ import {
   TrendingUp,
   People,
   School,
-  Info,
   ArrowBack,
   Comment
 } from '@mui/icons-material';
@@ -414,7 +413,7 @@ function Reports() {
       </Paper>
 
       {/* Report Results */}
-      {reportData && (
+      {reportData && reportData.summary && (
         <>
           {/* Summary Statistics */}
           <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -423,7 +422,7 @@ function Reports() {
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <People color="primary" />
-                    <Typography variant="h6">{reportData.summary.totalStudents}</Typography>
+                    <Typography variant="h6">{reportData.summary.totalStudents || 0}</Typography>
                   </Box>
                   <Typography color="textSecondary">Total Students</Typography>
                 </CardContent>
@@ -435,7 +434,7 @@ function Reports() {
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Assessment color="success" />
-                    <Typography variant="h6">{reportData.summary.studentsWithEvaluations}</Typography>
+                    <Typography variant="h6">{reportData.summary.studentsWithEvaluations || 0}</Typography>
                   </Box>
                   <Typography color="textSecondary">With Evaluations</Typography>
                 </CardContent>
@@ -447,7 +446,7 @@ function Reports() {
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <TrendingUp color="warning" />
-                    <Typography variant="h6">{reportData.summary.averageScore}%</Typography>
+                    <Typography variant="h6">{reportData.summary.averageScore || 0}%</Typography>
                   </Box>
                   <Typography color="textSecondary">Class Average</Typography>
                 </CardContent>
@@ -460,7 +459,9 @@ function Reports() {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <School color="info" />
                     <Typography variant="h6">
-                      {Object.values(reportData.summary.gradeDistribution).reduce((a, b) => a + b, 0)}
+                      {reportData.summary.gradeDistribution ? 
+                        Object.values(reportData.summary.gradeDistribution).reduce((a, b) => a + b, 0) : 0
+                      }
                     </Typography>
                   </Box>
                   <Typography color="textSecondary">Graded Students</Typography>
@@ -475,14 +476,16 @@ function Reports() {
               Grade Distribution
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              {Object.entries(reportData.summary.gradeDistribution).map(([grade, count]) => (
+              {reportData.summary?.gradeDistribution ? Object.entries(reportData.summary.gradeDistribution).map(([grade, count]) => (
                 <Chip
                   key={grade}
                   label={`${grade}: ${count}`}
                   color={getGradeColor(grade)}
                   variant={count > 0 ? 'filled' : 'outlined'}
                 />
-              ))}
+              )) : (
+                <Typography color="text.secondary">No grade distribution available</Typography>
+              )}
             </Box>
           </Paper>
 
@@ -495,19 +498,19 @@ function Reports() {
               <Grid container spacing={2}>
                 <Grid item xs={6} md={3}>
                   <Typography variant="body2" color="textSecondary">Class Mean</Typography>
-                  <Typography variant="h6">{reportData.gradingSettings.classStats.mean}%</Typography>
+                  <Typography variant="h6">{reportData.gradingSettings?.classStats?.mean || 0}%</Typography>
                 </Grid>
                 <Grid item xs={6} md={3}>
                   <Typography variant="body2" color="textSecondary">Standard Deviation</Typography>
-                  <Typography variant="h6">{reportData.gradingSettings.classStats.standardDeviation}</Typography>
+                  <Typography variant="h6">{reportData.gradingSettings?.classStats?.standardDeviation || 0}</Typography>
                 </Grid>
                 <Grid item xs={6} md={3}>
                   <Typography variant="body2" color="textSecondary">Boost Factor</Typography>
-                  <Typography variant="h6">{reportData.gradingSettings.classStats.boostFactor}</Typography>
+                  <Typography variant="h6">{reportData.gradingSettings?.classStats?.boostFactor || 1}</Typography>
                 </Grid>
                 <Grid item xs={6} md={3}>
                   <Typography variant="body2" color="textSecondary">Protection Threshold</Typography>
-                  <Typography variant="h6">{reportData.gradingSettings.classStats.protectionThreshold}%</Typography>
+                  <Typography variant="h6">{reportData.gradingSettings?.classStats?.protectionThreshold || 0}%</Typography>
                 </Grid>
               </Grid>
             </Paper>
@@ -544,7 +547,7 @@ function Reports() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.students.map((student) => (
+                  {reportData.students && reportData.students.length > 0 ? reportData.students.map((student) => (
                     <TableRow key={student._id}>
                       <TableCell>{student.student_id}</TableCell>
                       <TableCell>{student.name}</TableCell>
@@ -590,7 +593,13 @@ function Reports() {
                         </Tooltip>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={gradingMethod === 'curved' ? 8 : 6} align="center">
+                        <Typography color="text.secondary">No student data available</Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -631,7 +640,7 @@ function Reports() {
                       Feedback from Peer #{index + 1}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Submitted: {new Date(evaluation.submitted_at).toLocaleDateString()}
+                      Submitted: {evaluation.submitted_at ? new Date(evaluation.submitted_at).toLocaleDateString() : 'N/A'}
                     </Typography>
                   </Box>
                   
@@ -661,22 +670,22 @@ function Reports() {
                       </Typography>
                       <Grid container spacing={2}>
                         <Grid item xs={6} sm={4}>
-                          <Typography variant="caption">Professionalism: {evaluation.ratings.professionalism}/5</Typography>
+                          <Typography variant="caption">Professionalism: {evaluation.ratings?.professionalism || 0}/5</Typography>
                         </Grid>
                         <Grid item xs={6} sm={4}>
-                          <Typography variant="caption">Communication: {evaluation.ratings.communication}/5</Typography>
+                          <Typography variant="caption">Communication: {evaluation.ratings?.communication || 0}/5</Typography>
                         </Grid>
                         <Grid item xs={6} sm={4}>
-                          <Typography variant="caption">Work Ethic: {evaluation.ratings.work_ethic}/5</Typography>
+                          <Typography variant="caption">Work Ethic: {evaluation.ratings?.work_ethic || 0}/5</Typography>
                         </Grid>
                         <Grid item xs={6} sm={4}>
-                          <Typography variant="caption">Knowledge/Skills: {evaluation.ratings.content_knowledge_skills}/5</Typography>
+                          <Typography variant="caption">Knowledge/Skills: {evaluation.ratings?.content_knowledge_skills || 0}/5</Typography>
                         </Grid>
                         <Grid item xs={6} sm={4}>
-                          <Typography variant="caption">Contribution: {evaluation.ratings.overall_contribution}/5</Typography>
+                          <Typography variant="caption">Contribution: {evaluation.ratings?.overall_contribution || 0}/5</Typography>
                         </Grid>
                         <Grid item xs={6} sm={4}>
-                          <Typography variant="caption">Participation: {evaluation.ratings.participation}/4</Typography>
+                          <Typography variant="caption">Participation: {evaluation.ratings?.participation || 0}/4</Typography>
                         </Grid>
                       </Grid>
                     </Box>
