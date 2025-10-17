@@ -29,9 +29,13 @@ function LoginPage() {
     e.preventDefault();
     setError('');
 
+    const baseURL = process.env.NODE_ENV === 'production'
+      ? 'https://peer-evaluation-backend.onrender.com/api'
+      : 'http://localhost:5000/api';
+      
     const endpoint = isRegistering
-      ? 'https://peer-evaluation-backend.onrender.com/api/auth/register'
-      : 'https://peer-evaluation-backend.onrender.com/api/auth/login';
+      ? `${baseURL}/auth/register`
+      : `${baseURL}/auth/login`;
 
     const payload = isRegistering
       ? { email, password, name, department }

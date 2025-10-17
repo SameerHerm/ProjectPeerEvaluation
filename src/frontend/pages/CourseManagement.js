@@ -1083,7 +1083,10 @@ function CourseManagement() {
       } else {
         // Use the first student's token for testing
         const testStudent = students[0];
-        const evaluationUrl = `https://peer-evaluation-frontend.onrender.com/evaluate/${testStudent.evaluation_token}`;
+        const frontendURL = process.env.NODE_ENV === 'production'
+          ? 'https://peer-evaluation-frontend.onrender.com'
+          : 'http://localhost:3000';
+        const evaluationUrl = `${frontendURL}/evaluate/${testStudent.evaluation_token}`;
         
         setTestEvaluationData({
           course: course,
@@ -2384,7 +2387,12 @@ function CourseManagement() {
                             </Typography>
                             <Button
                               size="small"
-                              onClick={() => window.open(`https://peer-evaluation-frontend.onrender.com/evaluate/${student.evaluation_token}`, '_blank')}
+                              onClick={() => {
+                                const frontendURL = process.env.NODE_ENV === 'production'
+                                  ? 'https://peer-evaluation-frontend.onrender.com'
+                                  : 'http://localhost:3000';
+                                window.open(`${frontendURL}/evaluate/${student.evaluation_token}`, '_blank');
+                              }}
                             >
                               Test
                             </Button>
