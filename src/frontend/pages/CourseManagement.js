@@ -1067,7 +1067,7 @@ function CourseManagement() {
       let errorMessage = 'Failed to send evaluation invitations';
       
       if (error.code === 'ECONNABORTED') {
-        errorMessage = 'Request timed out - server may be busy processing emails. Please try again.';
+        errorMessage = 'Email sending is taking longer than expected. This is normal for the first time. Please wait a few more minutes and check your email, or try again.';
       } else if (error.response?.status === 500) {
         errorMessage = 'Server error - check backend logs for SMTP configuration issues';
       } else if (error.response?.status === 401) {

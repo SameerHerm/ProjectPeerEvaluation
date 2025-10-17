@@ -22,7 +22,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 60000, // 60 second timeout for production
+  timeout: 180000, // 3 minute timeout for email sending in production
 });
 
 // Attach JWT token from localStorage/sessionStorage to every request
