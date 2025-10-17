@@ -1023,7 +1023,17 @@ function CourseManagement() {
     // First check if backend is reachable
     try {
       console.log('Testing backend connectivity...');
-      await api.get('/health'); // Test connectivity with health check endpoint
+      // Test with the root endpoint that we know exists
+      const testUrl = window.location.hostname.includes('onrender.com') 
+        ? 'https://peer-evaluation-backend.onrender.com/' 
+        : 'http://localhost:5000/';
+      console.log('Testing backend URL:', testUrl);
+      const testResponse = await fetch(testUrl);
+      if (!testResponse.ok) {
+        throw new Error(`Backend returned ${testResponse.status}`);
+      }
+      const result = await testResponse.json();
+      console.log('Backend response:', result);
       console.log('Backend is reachable, proceeding with evaluation send...');
     } catch (connectError) {
       console.error('Backend connectivity test failed:', connectError);
