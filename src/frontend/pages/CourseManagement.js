@@ -23,6 +23,7 @@ import {
   Alert,
   Box,
   LinearProgress,
+  CircularProgress,
   FormControl,
   InputLabel,
   Select,
@@ -80,6 +81,9 @@ function CourseManagement() {
   const [testEvaluationOpen, setTestEvaluationOpen] = useState(false);
   const [testEvaluationData, setTestEvaluationData] = useState(null);
   const [testEvaluationLoading, setTestEvaluationLoading] = useState(false);
+
+  // State for sending evaluations
+  const [sendingEvaluations, setSendingEvaluations] = useState(false);
 
   // Handler stubs for add, edit, delete
   const handleAddStudent = async () => {
@@ -1011,14 +1015,28 @@ function CourseManagement() {
   };
 
   const handleSendInvitations = async (courseId) => {
+    setSendingEvaluations(true);
     try {
       const response = await api.post(`/courses/${courseId}/evaluations/send`);
       setAlert({ 
         severity: 'success', 
-        message: response.data.message 
+        message: `✅ ${response.data.message} - Emails sent to ${response.data.emails_sent || 'all'} students`
       });
+      // Close the evaluation status dialog if open
+      setEvaluationStatusOpen(false);
+      // Refresh the evaluation status after sending
+      setTimeout(() => {
+        handleViewEvaluationStatus({ _id: courseId, id: courseId });
+      }, 1000);
     } catch (error) {
-      setAlert({ severity: 'error', message: 'Failed to send invitations' });
+      console.error('Send evaluations error:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error?.message || 'Failed to send evaluation invitations';
+      setAlert({ 
+        severity: 'error', 
+        message: `❌ ${errorMessage}` 
+      });
+    } finally {
+      setSendingEvaluations(false);
     }
   };
 
@@ -1856,8 +1874,9 @@ function CourseManagement() {
                           color="primary"
                           onClick={() => handleSendInvitations(course._id || course.id)}
                           title="Send Evaluations"
+                          disabled={sendingEvaluations}
                         >
-                          <SendIcon />
+                          {sendingEvaluations ? <CircularProgress size={20} /> : <SendIcon />}
                         </IconButton>
                         <IconButton
                           size="small"
@@ -2140,14 +2159,14 @@ function CourseManagement() {
                   <Button
                     variant="contained"
                     color="primary"
-                    startIcon={<SendIcon />}
+                    startIcon={sendingEvaluations ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
                     onClick={() => {
-                      setEvaluationStatusOpen(false);
                       handleSendInvitations(selectedCourseForEval._id || selectedCourseForEval.id);
                     }}
                     size="large"
+                    disabled={sendingEvaluations}
                   >
-                    Send Evaluations Now
+                    {sendingEvaluations ? 'Sending Evaluations...' : 'Send Evaluations Now'}
                   </Button>
                 </Alert>
               ) : (

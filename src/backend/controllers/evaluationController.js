@@ -253,8 +253,8 @@ exports.getEvaluationForm = async (req, res, next) => {
     const student = await Student.findOne({ evaluation_token: token }).populate('course_id').populate('team_id');
     
     if (!student) {
-      const err = new Error('Invalid evaluation token.');
-      err.code = 'INVALID_TOKEN';
+      const err = new Error('This evaluation has been cancelled or is no longer available.');
+      err.code = 'EVALUATION_CANCELLED';
       err.status = 404;
       return next(err);
     }
@@ -328,8 +328,8 @@ exports.submitEvaluation = async (req, res, next) => {
     const student = await Student.findOne({ evaluation_token: token }).populate('course_id');
     
     if (!student) {
-      const err = new Error('Invalid evaluation token.');
-      err.code = 'INVALID_TOKEN';
+      const err = new Error('This evaluation has been cancelled or is no longer available.');
+      err.code = 'EVALUATION_CANCELLED';
       err.status = 404;
       return next(err);
     }

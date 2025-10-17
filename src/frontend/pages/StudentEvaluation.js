@@ -70,7 +70,8 @@ function StudentEvaluation() {
         }
       } catch (error) {
         console.error('Error loading evaluation form:', error);
-        setError(error.response?.data?.error?.message || 'Failed to load evaluation form');
+        const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Failed to load evaluation form';
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
