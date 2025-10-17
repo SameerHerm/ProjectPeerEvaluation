@@ -1,12 +1,21 @@
 import axios from 'axios';
 
 // Detect environment and set appropriate API URL
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
+// Check multiple indicators for production environment
+const isProduction = process.env.NODE_ENV === 'production' || 
+                    window.location.hostname.includes('onrender.com') ||
+                    window.location.hostname !== 'localhost';
+
+const API_BASE_URL = isProduction
   ? 'https://peer-evaluation-backend.onrender.com/api'
   : 'http://localhost:5000/api';
 
-console.log('Environment:', process.env.NODE_ENV);
-console.log('API Base URL:', API_BASE_URL);
+console.log('Environment Detection:', {
+  NODE_ENV: process.env.NODE_ENV,
+  hostname: window.location.hostname,
+  isProduction: isProduction,
+  API_BASE_URL: API_BASE_URL
+});
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -38,16 +47,25 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('API Error:', {
+    console.error('API Error Details:', {
       status: error.response?.status,
       message: error.response?.data?.message || error.message,
       url: error.config?.url,
       method: error.config?.method?.toUpperCase(),
-      timeout: error.code === 'ECONNABORTED'
+      timeout: error.code === 'ECONNABORTED',
+      networkError: error.code === 'ERR_NETWORK',
+      baseURL: error.config?.baseURL
     });
     
+    // Provide more specific error messages
     if (error.code === 'ECONNABORTED') {
       console.error('Request timed out - server may be overloaded or unresponsive');
+      error.userMessage = 'Request timed out. The server may be busy, please try again.';
+    } else if (error.code === 'ERR_NETWORK' || !error.response) {
+      console.error('Network error - cannot reach backend server');
+      error.userMessage = `Cannot connect to backend server at ${error.config?.baseURL}. Please check if the backend is running.`;
+    } else if (error.response?.status >= 500) {
+      error.userMessage = 'Server error occurred. Please try again later.';
     }
     
     return Promise.reject(error);
