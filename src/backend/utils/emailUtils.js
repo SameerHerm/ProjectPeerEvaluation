@@ -4,12 +4,16 @@ const nodemailer = require('nodemailer');
 // In production, these should come from environment variables
 const EMAIL_CONFIG = {
   host: process.env.SMTP_HOST || 'localhost',
-  port: process.env.SMTP_PORT || 587,
-  secure: false, // true for 465, false for other ports
+  port: parseInt(process.env.SMTP_PORT) || 587,
+  secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465', // true for 465, false for other ports
   auth: {
     user: process.env.SMTP_USER || 'test@example.com',
     pass: process.env.SMTP_PASS || 'password'
-  }
+  },
+  // Add connection timeout and other options for better reliability
+  connectionTimeout: 60000, // 60 seconds
+  greetingTimeout: 30000,   // 30 seconds
+  socketTimeout: 60000      // 60 seconds
 };
 
 // Create transporter
