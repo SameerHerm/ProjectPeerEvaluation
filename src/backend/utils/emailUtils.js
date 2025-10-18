@@ -3,8 +3,9 @@ const nodemailer = require('nodemailer');
 // Email configuration
 // In production, these should come from environment variables
 const EMAIL_CONFIG = {
-  host: process.env.SMTP_HOST || 'localhost',
-  port: parseInt(process.env.SMTP_PORT) || 587,
+  service: process.env.SMTP_SERVICE || undefined, // Use 'gmail' for better compatibility
+  host: process.env.SMTP_SERVICE ? undefined : (process.env.SMTP_HOST || 'localhost'),
+  port: process.env.SMTP_SERVICE ? undefined : (parseInt(process.env.SMTP_PORT) || 587),
   secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465', // true for 465, false for other ports
   auth: {
     user: process.env.SMTP_USER || 'test@example.com',
@@ -13,7 +14,11 @@ const EMAIL_CONFIG = {
   // Add connection timeout and other options for better reliability
   connectionTimeout: 60000, // 60 seconds
   greetingTimeout: 30000,   // 30 seconds
-  socketTimeout: 60000      // 60 seconds
+  socketTimeout: 60000,     // 60 seconds
+  // Add TLS options for better Gmail compatibility
+  tls: {
+    rejectUnauthorized: false
+  }
 };
 
 // Create transporter
