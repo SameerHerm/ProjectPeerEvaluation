@@ -1962,7 +1962,7 @@ function CourseManagement() {
                         >
                           <BarChartIcon />
                         </IconButton>
-                        <IconButton
+                        {/* <IconButton
                           size="small"
                           color="info"
                           onClick={() => handleTestEvaluation(course)}
@@ -1971,7 +1971,7 @@ function CourseManagement() {
                           <Typography variant="h6" component="span" sx={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
                             T
                           </Typography>
-                        </IconButton>
+                        </IconButton> */}
                         <IconButton
                           size="small"
                           color="primary"
