@@ -112,13 +112,18 @@ function StudentEvaluation() {
 
   // Submit evaluation
   const handleSubmit = async () => {
+    console.log('Submit button clicked!');
+    console.log('Current evaluations state:', evaluations);
+    
     // Validate all evaluations
     const evaluationArray = Object.values(evaluations);
+    console.log('Evaluation array:', evaluationArray);
     
     for (const evaluation of evaluationArray) {
       // Check all ratings are filled
       for (const [criterion, value] of Object.entries(evaluation.ratings)) {
         if (value === '' || value === null || value === undefined) {
+          console.log(`Missing rating for ${criterion}:`, value);
           setError(`Please provide a rating for ${criterion.replace('_', ' ')} for all team members.`);
           return;
         }
@@ -126,22 +131,27 @@ function StudentEvaluation() {
       
       // Check feedback is provided
       if (!evaluation.overall_feedback || evaluation.overall_feedback.trim().length < 10) {
+        console.log('Missing or insufficient feedback:', evaluation.overall_feedback);
         setError('Please provide overall feedback (at least 10 characters) for all team members.');
         return;
       }
     }
 
+    console.log('Validation passed, submitting...');
     setSubmitting(true);
     setError('');
 
     try {
-      await api.post(`/evaluate/${token}`, {
+      console.log('Making API call to:', `/evaluate/${token}`);
+      const response = await api.post(`/evaluate/${token}`, {
         evaluations: evaluationArray
       });
       
+      console.log('API response:', response);
       setSuccess(true);
     } catch (error) {
       console.error('Error submitting evaluation:', error);
+      console.error('Error response:', error.response);
       setError(error.response?.data?.error?.message || 'Failed to submit evaluation');
     } finally {
       setSubmitting(false);
