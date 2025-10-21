@@ -1,10 +1,8 @@
-require('dotenv').config();
+const express = require('express');
+const router = express.Router();
 const mongoose = require('mongoose');
 const Course = require('../models/Course');
-
-
-const Professor = require('../models/Professor');
-const PROFESSOR_EMAIL = 'pbj2711@gmail.com';
+const authMiddleware = require('../middleware/authMiddleware');
 
 // Sample data for generating random courses
 const courseNames = [
@@ -52,41 +50,42 @@ function generateRandomCourse(professorId) {
   };
 }
 
-async function addRandomCoursesForYou() {
+// Load test data endpoint (protected by auth)
+router.post('/load-test-data', authMiddleware, async (req, res) => {
   try {
-    console.log('🚀 Connecting to MongoDB...');
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('✅ Connected to MongoDB');
-
-    // Find professor by email
-    const prof = await Professor.findOne({ email: PROFESSOR_EMAIL });
-    if (!prof) {
-      console.log(`❌ Professor not found with email: ${PROFESSOR_EMAIL}`);
-      return;
-    }
-    console.log(`📋 Adding courses for professor ID: ${prof._id}`);
+    console.log('📋 Loading test data for professor:', req.professor.id);
 
     console.log('📚 Generating 10 random courses...');
     const courses = [];
+    
     for (let i = 0; i < 10; i++) {
-      courses.push(generateRandomCourse(prof._id));
+      courses.push(generateRandomCourse(req.professor.id));
     }
 
     console.log('💾 Inserting courses into database...');
     const insertedCourses = await Course.insertMany(courses);
     
-    console.log(`✅ Successfully added ${insertedCourses.length} courses:`);
-    insertedCourses.forEach((course, index) => {
-      console.log(`${index + 1}. ${course.course_name} (${course.course_number} - ${course.course_section}) - ${course.semester}`);
+    console.log(`✅ Successfully added ${insertedCourses.length} courses`);
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully loaded ${insertedCourses.length} test courses`,
+      courses: insertedCourses.map(course => ({
+        course_name: course.course_name,
+        course_number: course.course_number,
+        course_section: course.course_section,
+        semester: course.semester
+      }))
     });
 
   } catch (error) {
-    console.error('❌ Error adding courses:', error);
-  } finally {
-    console.log('🔌 Disconnecting from MongoDB...');
-    await mongoose.disconnect();
-    console.log('👋 Script completed');
+    console.error('❌ Error loading test data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to load test data',
+      error: error.message
+    });
   }
-}
+});
 
-addRandomCoursesForYou();
+module.exports = router;
