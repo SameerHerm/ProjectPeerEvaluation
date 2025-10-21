@@ -60,6 +60,11 @@ function CourseManagement() {
   const [studentForm, setStudentForm] = useState({ student_id: '', name: '', email: '', group_assignment: '' });
   const [studentFormError, setStudentFormError] = useState('');
 
+  // State for sorting courses table
+  const [sortConfig, setSortConfig] = useState({ key: 'course_name', direction: 'asc' });
+
+  // Sorting handler
+
   // State for CSV upload
   const [csvUploadOpen, setCsvUploadOpen] = useState(false);
   const [csvFile, setCsvFile] = useState(null);
@@ -99,13 +104,16 @@ function CourseManagement() {
     try {
       await api.post(`/courses/${studentsCourse._id || studentsCourse.id}/students`, studentForm);
       setAlert({ severity: 'success', message: 'Student added successfully' });
-      setAddStudentOpen(false);
+      setAddStudentOpen(false); // Only close the Add Student dialog
       setStudentForm({ student_id: '', name: '', email: '', group_assignment: '' });
       // Refresh students list
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
-      setStudents(response.data);
-      // Re-apply current search filters
-      handleStudentSearchChange('student_id', studentSearch.student_id);
+  setStudents(response.data);
+  setFilteredStudents(response.data); // Immediately update filtered list
+  // Reset search filters so all students are shown
+  setStudentSearch({ student_id: '', name: '', email: '', team: '' });
+      // Ensure Manage Students dialog stays open and refreshed
+      setStudentsDialogOpen(true);
     } catch (error) {
       if (error.response && error.response.data && error.response.data.error && error.response.data.error.message) {
         setStudentFormError(error.response.data.error.message);
@@ -1376,10 +1384,25 @@ function CourseManagement() {
           <Table style={{ width: '100%' }}>
             <TableHead>
               <TableRow>
-                <TableCell>Course Name</TableCell>
-                <TableCell>Course Number</TableCell>
-                <TableCell>Course Section</TableCell>
-                <TableCell>Semester</TableCell>
+                <TableCell
+                  onClick={() => setSortConfig(prev => ({ key: 'course_name', direction: prev.key === 'course_name' && prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                  style={{ cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                >
+                  Course Name {sortConfig.key === 'course_name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                </TableCell>
+                <TableCell
+                  onClick={() => setSortConfig(prev => ({ key: 'course_number', direction: prev.key === 'course_number' && prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                  style={{ cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                >
+                  Course Number {sortConfig.key === 'course_number' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                </TableCell>
+                <TableCell style={{ whiteSpace: 'nowrap' }}>Course Section</TableCell>
+                <TableCell
+                  onClick={() => setSortConfig(prev => ({ key: 'semester', direction: prev.key === 'semester' && prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                  style={{ cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                >
+                  Semester {sortConfig.key === 'semester' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                </TableCell>
                 <TableCell align="center">Students</TableCell>
                 <TableCell align="center">Teams</TableCell>
                 <TableCell align="center">Status</TableCell>
@@ -1400,17 +1423,53 @@ function CourseManagement() {
                   </TableCell>
                 </TableRow>
               ) : (
-                courses.map((course) => (
+                // Sort courses before mapping
+                [...courses].sort((a, b) => {
+                  const { key, direction } = sortConfig;
+                  let aValue = a[key];
+                  let bValue = b[key];
+                  // Handle alternate keys for course_number
+                  if (key === 'course_number') {
+                    aValue = a.course_number || a.course_code || '';
+                    bValue = b.course_number || b.course_code || '';
+                  }
+                  // Handle numbers for student_count/team_count
+                  if (key === 'student_count' || key === 'team_count') {
+                    aValue = a[key] || 0;
+                    bValue = b[key] || 0;
+                  }
+                  // Fallback to string compare
+                  if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    aValue = aValue.toLowerCase();
+                    bValue = bValue.toLowerCase();
+                  }
+                  if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+                  if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+
+                  // If sorting by semester, use course_name as secondary (alphabetical)
+                  if (key === 'semester') {
+                    const aName = (a.course_name || '').toLowerCase();
+                    const bName = (b.course_name || '').toLowerCase();
+                    if (aName < bName) return -1;
+                    if (aName > bName) return 1;
+                  }
+                  // Always use course_section as final tiebreaker (numeric, ascending)
+                  const aSection = parseInt(a.course_section, 10) || 0;
+                  const bSection = parseInt(b.course_section, 10) || 0;
+                  if (aSection < bSection) return -1;
+                  if (aSection > bSection) return 1;
+                  return 0;
+                }).map((course) => (
                   <TableRow key={course.id || course._id}>
                     <TableCell>{course.course_name}</TableCell>
                     <TableCell>{course.course_number || course.course_code || 'N/A'}</TableCell>
                     <TableCell>{course.course_section || 'N/A'}</TableCell>
-                    <TableCell>{course.semester}</TableCell>
+                    <TableCell style={{ whiteSpace: 'nowrap' }}>{course.semester}</TableCell>
                     <TableCell align="center">
                       <Chip label={course.student_count || 0} size="small" />
                     </TableCell>
                     <TableCell align="center">
-                      <Chip label={course.team_count || 0} size="small" />
+                      <Chip label={Number.isInteger(course.team_count) && course.team_count > 0 ? course.team_count : 0} size="small" />
                     </TableCell>
                     <TableCell align="center">
                       <Chip 
@@ -1545,7 +1604,7 @@ function CourseManagement() {
                     <TableCell>Student ID</TableCell>
                     <TableCell>Name</TableCell>
                     <TableCell>Email</TableCell>
-                    <TableCell>Team Assignment</TableCell>
+                    <TableCell>Team</TableCell>
                     <TableCell align="center">Actions</TableCell>
                   </TableRow>
                 </TableHead>
