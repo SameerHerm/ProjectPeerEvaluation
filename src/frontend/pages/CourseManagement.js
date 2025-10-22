@@ -92,6 +92,10 @@ function CourseManagement() {
 
   // State for resetting evaluation state
   const [resettingEvaluations, setResettingEvaluations] = useState(false);
+  // State for showing evaluation reset confirmation dialog
+  const [showEvalResetDialog, setShowEvalResetDialog] = useState(false);
+  const [pendingEvalResetCourseId, setPendingEvalResetCourseId] = useState(null);
+  const [pendingTeamAction, setPendingTeamAction] = useState(null); // { type: 'add'|'remove', studentId }
 
   // Handler stubs for add, edit, delete
   const handleAddStudent = async () => {
@@ -779,51 +783,110 @@ function CourseManagement() {
 
   const handleAddStudentToTeam = async (studentId) => {
     if (!selectedTeam || !teamsCourse) return;
-    
     try {
-      await api.post(`/courses/${teamsCourse._id}/teams/${selectedTeam._id}/students/${studentId}`);
-      
-      // Move student from available to team
-      const student = availableStudents.find(s => s._id === studentId);
-      if (student) {
-        setTeamStudents(prev => [...prev, { ...student, team_id: selectedTeam._id, group_assignment: selectedTeam.team_name }]);
-        setAvailableStudents(prev => prev.filter(s => s._id !== studentId));
+      // Check if evaluations have been sent BEFORE making changes
+      const evalStatusResp = await api.get(`/courses/${teamsCourse._id}/evaluations/status`);
+      if (evalStatusResp.data && evalStatusResp.data.evaluations_sent) {
+        setPendingEvalResetCourseId(teamsCourse._id);
+        setPendingTeamAction({ type: 'add', studentId, selectedTeam, teamsCourse });
+        setShowEvalResetDialog(true);
+        return;
       }
-      
-      // Refresh teams list to update counts
-      const teamsResponse = await api.get(`/courses/${teamsCourse._id}/teams`);
-      setTeams(teamsResponse.data);
-      
-      setAlert({ severity: 'success', message: `Student added to ${selectedTeam.team_name}` });
+      // If not sent, proceed as normal
+      await doAddStudentToTeam(studentId, selectedTeam, teamsCourse);
     } catch (error) {
       console.error('Error adding student to team:', error);
       setAlert({ severity: 'error', message: 'Failed to add student to team' });
     }
   };
 
+  // Actual add logic, separated for reuse
+  const doAddStudentToTeam = async (studentId, teamOverride, courseOverride) => {
+    const team = teamOverride || selectedTeam;
+    const course = courseOverride || teamsCourse;
+    if (!team || !course) return;
+    await api.post(`/courses/${course._id}/teams/${team._id}/students/${studentId}`);
+    // Move student from available to team
+    const student = availableStudents.find(s => s._id === studentId);
+    if (student) {
+      setTeamStudents(prev => [...prev, { ...student, team_id: team._id, group_assignment: team.team_name }]);
+      setAvailableStudents(prev => prev.filter(s => s._id !== studentId));
+    }
+    // Refresh teams list to update counts
+    const teamsResponse = await api.get(`/courses/${course._id}/teams`);
+    setTeams(teamsResponse.data);
+    setAlert({ severity: 'success', message: `Student added to ${team.team_name}` });
+    // Refresh students in team dialog
+    await handleManageTeamStudents(team);
+  };
+
   const handleRemoveStudentFromTeam = async (studentId) => {
     if (!selectedTeam || !teamsCourse) return;
-    
     try {
-      await api.delete(`/courses/${teamsCourse._id}/teams/${selectedTeam._id}/students/${studentId}`);
-      
-      // Move student from team to available
-      const student = teamStudents.find(s => s._id === studentId);
-      if (student) {
-        setAvailableStudents(prev => [...prev, { ...student, team_id: null, group_assignment: '' }]);
-        setTeamStudents(prev => prev.filter(s => s._id !== studentId));
+      // Check if evaluations have been sent BEFORE making changes
+      const evalStatusResp = await api.get(`/courses/${teamsCourse._id}/evaluations/status`);
+      if (evalStatusResp.data && evalStatusResp.data.evaluations_sent) {
+        setPendingEvalResetCourseId(teamsCourse._id);
+        setPendingTeamAction({ type: 'remove', studentId, selectedTeam, teamsCourse });
+        setShowEvalResetDialog(true);
+        return;
       }
-      
-      // Refresh teams list to update counts
-      const teamsResponse = await api.get(`/courses/${teamsCourse._id}/teams`);
-      setTeams(teamsResponse.data);
-      
-      setAlert({ severity: 'success', message: `Student removed from ${selectedTeam.team_name}` });
+      // If not sent, proceed as normal
+      await doRemoveStudentFromTeam(studentId, selectedTeam, teamsCourse);
     } catch (error) {
       console.error('Error removing student from team:', error);
       setAlert({ severity: 'error', message: 'Failed to remove student from team' });
     }
   };
+
+  // Actual remove logic, separated for reuse
+  const doRemoveStudentFromTeam = async (studentId, teamOverride, courseOverride) => {
+    const team = teamOverride || selectedTeam;
+    const course = courseOverride || teamsCourse;
+    if (!team || !course) return;
+    await api.delete(`/courses/${course._id}/teams/${team._id}/students/${studentId}`);
+    // Move student from team to available
+    const student = teamStudents.find(s => s._id === studentId);
+    if (student) {
+      setAvailableStudents(prev => [...prev, { ...student, team_id: null, group_assignment: '' }]);
+      setTeamStudents(prev => prev.filter(s => s._id !== studentId));
+    }
+    // Refresh teams list to update counts
+    const teamsResponse = await api.get(`/courses/${course._id}/teams`);
+    setTeams(teamsResponse.data);
+    setAlert({ severity: 'success', message: `Student removed from ${team.team_name}` });
+    // Refresh students in team dialog
+    await handleManageTeamStudents(team);
+  };
+
+  // Handler for confirming evaluation reset and then performing the pending team action
+  const handleConfirmEvalReset = async () => {
+    console.log('handleConfirmEvalReset called', { pendingEvalResetCourseId, pendingTeamAction });
+    if (!pendingEvalResetCourseId || !pendingTeamAction) {
+      console.log('Missing pendingEvalResetCourseId or pendingTeamAction');
+      return;
+    }
+    setShowEvalResetDialog(false);
+    await handleResetEvaluationState(pendingEvalResetCourseId);
+    // After reset, perform the pending action with stored team/course
+    if (pendingTeamAction.type === 'add') {
+      console.log('Proceeding with doAddStudentToTeam', pendingTeamAction);
+      await doAddStudentToTeam(pendingTeamAction.studentId, pendingTeamAction.selectedTeam, pendingTeamAction.teamsCourse);
+    } else if (pendingTeamAction.type === 'remove') {
+      console.log('Proceeding with doRemoveStudentFromTeam', pendingTeamAction);
+      await doRemoveStudentFromTeam(pendingTeamAction.studentId, pendingTeamAction.selectedTeam, pendingTeamAction.teamsCourse);
+    }
+    setPendingEvalResetCourseId(null);
+    setPendingTeamAction(null);
+  };
+
+  // Handler for cancelling evaluation reset
+  const handleCancelEvalReset = () => {
+    setShowEvalResetDialog(false);
+    setPendingEvalResetCourseId(null);
+    setPendingTeamAction(null);
+  };
+  // ...existing code...
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [courseToEdit, setCourseToEdit] = useState(null);
@@ -1269,6 +1332,23 @@ function CourseManagement() {
 
   return (
     <div className={styles.courseManagementContainer}>
+      {/* Evaluation Reset Confirmation Dialog */}
+      <Dialog open={showEvalResetDialog} onClose={handleCancelEvalReset} maxWidth="xs" fullWidth>
+        {console.log('Eval Reset Dialog rendered', { showEvalResetDialog, pendingEvalResetCourseId, pendingTeamAction })}
+        <DialogTitle>Evaluations Already Sent</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Evaluations have already been sent for this course. If you continue, the evaluation state will be reset and you will need to resend evaluations. This will clear all evaluation tokens and responses for this course.
+          </Typography>
+          <Typography variant="body2" color="error" sx={{ mb: 2 }}>
+            This action cannot be undone. Do you want to continue?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelEvalReset} color="secondary">Cancel</Button>
+          <Button onClick={handleConfirmEvalReset} color="warning" variant="contained">Continue</Button>
+        </DialogActions>
+      </Dialog>
       {addStudentDialog}
       {editStudentDialog}
       {csvUploadDialog}
