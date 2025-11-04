@@ -5,7 +5,11 @@ Status: Planning / In Progress
 
 A web-based platform to streamline peer evaluations in team-based courses. Professors can securely create and manage student rosters, assign students to courses/teams, trigger email invitations, and receive structured, professor-friendly reports with both numeric and textual feedback. Optional AI features may summarize comments and flag potential concerns, depending on timeline and scope.
 
-Project website URL: TBD — see the team guide for instructions.
+Project website URL: 
+https://www.google.com/url?q=https%3A%2F%2Fpeer-evaluation-frontend.onrender.com%2F&sa=D
+
+You can find more information about the project on our website:
+[Project Peer Evaluation Site](https://sites.google.com/d/1--7WFDwNF4-hJqB9fhH2VXELfxtjDwCy/p/1p6or7HniSsgUybdmLGxZgFywj6BTcmaA/edit)
 
 ---
 
