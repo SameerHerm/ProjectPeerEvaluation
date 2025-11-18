@@ -146,7 +146,51 @@ async function sendEvaluationReminder(student, course, evaluationToken, frontend
   }
 }
 
+// ...existing code...
+
+/**
+ * Send password reset email to professor
+ * @param {String} email - Professor's email
+ * @param {String} token - Reset token
+ */
+async function sendPasswordResetEmail(email, token, frontendUrl = 'http://localhost:3000') {
+  const resetUrl = `${frontendUrl}/reset-password/${token}`;
+  const subject = 'Password Reset Request';
+  const htmlContent = `
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #2c5aa0;">Password Reset Request</h2>
+          <p>We received a request to reset your password. If you did not make this request, you can ignore this email.</p>
+          <p>To reset your password, click the link below:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" style="background-color: #2c5aa0; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>
+          </div>
+          <p>This link will expire in 1 hour.</p>
+          <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
+          <p style="font-size: 12px; color: #888;">If you cannot click the link above, copy and paste this URL into your browser:<br>${resetUrl}</p>
+        </div>
+      </body>
+    </html>
+  `;
+  const mailOptions = {
+    from: process.env.SMTP_FROM || 'noreply@peerevaluation.com',
+    to: email,
+    subject: subject,
+    html: htmlContent
+  };
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Password reset email sent:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Error sending password reset email:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   sendEvaluationInvitation,
-  sendEvaluationReminder
+  sendEvaluationReminder,
+  sendPasswordResetEmail
 };
