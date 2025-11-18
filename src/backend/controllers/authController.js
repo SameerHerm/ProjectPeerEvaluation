@@ -133,7 +133,7 @@ exports.resetPassword = async (req, res, next) => {
 		professor.securityTokenExpires = Date.now() + 1000 * 60 * 60; // 1 hour expiry
 		await professor.save();
 		// Send password reset email
-		await sendPasswordResetEmail(professor.email, token);
+	await sendPasswordResetEmail(professor.email, token, process.env.FRONTEND_URL);
 		res.status(200).json({ message: 'If the email is registered, a reset link will be sent.' });
 	} catch (err) {
 		err.code = err.code || 'SERVER_ERROR';
