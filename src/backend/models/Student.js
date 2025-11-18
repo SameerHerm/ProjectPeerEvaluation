@@ -8,7 +8,7 @@ const StudentSchema = new mongoose.Schema({
 	course_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
 	team_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null }, // Reference to actual Team
 	group_assignment: { type: String, trim: true, default: null }, // Group name from CSV (used to create/find team)
-	evaluation_token: { type: String, required: true }, // Unique token for evaluation links
+	evaluation_token: { type: String, default: null }, // Unique token for evaluation links (set when evaluations are sent)
 	evaluation_completed: { type: Boolean, default: false },
 	created_at: { type: Date, default: Date.now }
 });

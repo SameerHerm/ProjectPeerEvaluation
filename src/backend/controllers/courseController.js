@@ -36,8 +36,18 @@ exports.listCourses = async (req, res, next) => {
 		}
 
 		let courses = await Course.find(filter);
-		
-		// Migrate old course_code to new fields if needed
+
+		// Get team counts for all courses in one query
+		const Team = require('../models/Team');
+		const courseIds = courses.map(c => c._id);
+		const teamCounts = await Team.aggregate([
+			{ $match: { course_id: { $in: courseIds } } },
+			{ $group: { _id: '$course_id', count: { $sum: 1 } } }
+		]);
+		const teamCountMap = {};
+		teamCounts.forEach(tc => { teamCountMap[tc._id.toString()] = tc.count; });
+
+		// Migrate old course_code to new fields if needed and set team_count
 		courses = courses.map(course => {
 			const courseObj = course.toObject();
 			if (courseObj.course_code && (!courseObj.course_number || !courseObj.course_section)) {
@@ -50,6 +60,8 @@ exports.listCourses = async (req, res, next) => {
 					courseObj.course_section = parts.slice(1).join(' ');
 				}
 			}
+			// Always set team_count from actual Team collection
+			courseObj.team_count = teamCountMap[courseObj._id.toString()] || 0;
 			return courseObj;
 		});
 		

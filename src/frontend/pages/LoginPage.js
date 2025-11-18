@@ -19,6 +19,28 @@ function LoginPage() {
       setPassword('');
     }
   }, [isRegistering]);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetStatus, setResetStatus] = useState('');
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    setResetStatus('');
+    if (!resetEmail) {
+      setResetStatus('Please enter your email.');
+      return;
+    }
+    try {
+      // Replace with your actual backend endpoint for password reset
+      const baseURL = process.env.NODE_ENV === 'production'
+        ? 'https://peer-evaluation-backend.onrender.com/api'
+        : 'http://localhost:5000/api';
+      await axios.post(`${baseURL}/auth/reset-password`, { email: resetEmail });
+      setResetStatus('If your email is registered, you will receive password reset instructions.');
+    } catch (err) {
+      setResetStatus('Failed to send reset instructions.');
+    }
+  };
   const [name, setName] = useState('');
   const [department, setDepartment] = useState('');
   const [error, setError] = useState('');
@@ -29,9 +51,13 @@ function LoginPage() {
     e.preventDefault();
     setError('');
 
+    const baseURL = process.env.NODE_ENV === 'production'
+      ? 'https://peer-evaluation-backend.onrender.com/api'
+      : 'http://localhost:5000/api';
+      
     const endpoint = isRegistering
-      ? 'http://localhost:5000/api/auth/register'
-      : 'http://localhost:5000/api/auth/login';
+      ? `${baseURL}/auth/register`
+      : `${baseURL}/auth/login`;
 
     const payload = isRegistering
       ? { email, password, name, department }
@@ -118,6 +144,22 @@ function LoginPage() {
         >
           {isRegistering ? 'Register' : 'Login'}
         </button>
+        {!isRegistering && (
+          <button
+            type="button"
+            onClick={() => setShowResetDialog(true)}
+            style={{
+              marginTop: '10px',
+              background: 'none',
+              border: 'none',
+              color: '#007bff',
+              cursor: 'pointer',
+              textDecoration: 'underline'
+            }}
+          >
+            Forgot Password?
+          </button>
+        )}
       </form>
       <button
         onClick={() => setIsRegistering((prev) => !prev)}
@@ -136,6 +178,33 @@ function LoginPage() {
       </button>
 
       {error && <p style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
+
+      {/* Password Reset Dialog */}
+      {showResetDialog && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div style={{ background: '#fff', padding: 24, borderRadius: 8, minWidth: 320 }}>
+            <h3>Reset Password</h3>
+            <form onSubmit={handlePasswordReset}>
+              <input
+                type="email"
+                placeholder="Enter your email"
+                value={resetEmail}
+                onChange={e => setResetEmail(e.target.value)}
+                style={{ width: '100%', marginBottom: 12, padding: 8 }}
+                required
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="submit" style={{ padding: '8px 16px' }}>Send Reset Link</button>
+                <button type="button" style={{ padding: '8px 16px' }} onClick={() => setShowResetDialog(false)}>Cancel</button>
+              </div>
+            </form>
+            {resetStatus && <p style={{ color: resetStatus.startsWith('If') ? 'green' : 'red', marginTop: 10 }}>{resetStatus}</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

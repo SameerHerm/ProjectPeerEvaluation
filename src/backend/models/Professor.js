@@ -33,6 +33,9 @@ const ProfessorSchema = new mongoose.Schema({
 	},
 	securityToken: {
 		type: String
+	},
+	securityTokenExpires: {
+		type: Date
 	}
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 

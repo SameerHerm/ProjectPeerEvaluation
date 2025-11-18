@@ -1,8 +1,10 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import CourseManagement from './pages/CourseManagement';
 import LoginPage from './pages/LoginPage';
+import StudentEvaluation from './pages/StudentEvaluation';
+import Reports from './pages/Reports';
 
 function App() {
     return (
@@ -10,6 +12,23 @@ function App() {
             <Routes>
                 <Route path="/" element={<LoginPage />} />
                 <Route path="/course-management" element={<CourseManagement />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/evaluate/:token" element={<StudentEvaluation />} />
+                {/* Catch-all route for debugging */}
+                <Route path="*" element={
+                    <div style={{padding: '20px'}}>
+                        <h1>Route Debug Info</h1>
+                        <p>Current URL: {window.location.href}</p>
+                        <p>Pathname: {window.location.pathname}</p>
+                        <p>Available routes:</p>
+                        <ul>
+                            <li>/</li>
+                            <li>/course-management</li>
+                            <li>/reports</li>
+                            <li>/evaluate/:token</li>
+                        </ul>
+                    </div>
+                } />
             </Routes>
         </Router>
     );

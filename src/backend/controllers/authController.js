@@ -108,3 +108,36 @@ exports.verifyMfa = async (req, res, next) => {
 	err.status = 501;
 	next(err);
 };
+
+const { sendEvaluationInvitation, sendEvaluationReminder } = require('../utils/emailUtils');
+const { sendPasswordResetEmail } = require('../utils/emailUtils');
+
+// Password reset request handler
+exports.resetPassword = async (req, res, next) => {
+	try {
+		const { email } = req.body;
+		if (!email) {
+			const err = new Error('Email is required.');
+			err.code = 'VALIDATION_ERROR';
+			err.status = 400;
+			return next(err);
+		}
+		const professor = await Professor.findOne({ email });
+		if (!professor) {
+			// For security, do not reveal if email is not registered
+			return res.status(200).json({ message: 'If the email is registered, a reset link will be sent.' });
+		}
+		// Generate secure token
+		const token = crypto.randomBytes(32).toString('hex');
+		professor.securityToken = token;
+		professor.securityTokenExpires = Date.now() + 1000 * 60 * 60; // 1 hour expiry
+		await professor.save();
+		// Send password reset email
+	await sendPasswordResetEmail(professor.email, token, process.env.FRONTEND_URL);
+		res.status(200).json({ message: 'If the email is registered, a reset link will be sent.' });
+	} catch (err) {
+		err.code = err.code || 'SERVER_ERROR';
+		err.status = err.status || 500;
+		next(err);
+	}
+};

@@ -23,6 +23,7 @@ import {
   Alert,
   Box,
   LinearProgress,
+  CircularProgress,
   FormControl,
   InputLabel,
   Select,
@@ -44,6 +45,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import { useNavigate } from 'react-router-dom';
 import api, { getCourseById } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,6 +53,23 @@ import styles from '../styles/CourseManagement.module.css';
 import '../App.css';
 
 function CourseManagement() {
+  // --- Team evaluation send state/handler (place after other hooks, before return) ---
+  const [sendingTeamEvaluations, setSendingTeamEvaluations] = useState({});
+
+  const handleSendTeamEvaluations = async (team) => {
+    if (!teamsCourse || !team) return;
+    const teamId = team._id || team.id;
+    setSendingTeamEvaluations((prev) => ({ ...prev, [teamId]: true }));
+    try {
+      await api.post(`/courses/${teamsCourse._id || teamsCourse.id}/teams/${teamId}/evaluations/send`, {});
+      setAlert({ severity: 'success', message: `Evaluation invitations sent to team "${team.team_name}".` });
+      fetchCoursesWithCounts();
+    } catch (error) {
+      setAlert({ severity: 'error', message: error.userMessage || `Failed to send evaluations to team "${team.team_name}".` });
+    } finally {
+      setSendingTeamEvaluations((prev) => ({ ...prev, [teamId]: false }));
+    }
+  };
   // State for add/edit student dialogs
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [editStudentOpen, setEditStudentOpen] = useState(false);
@@ -58,12 +77,42 @@ function CourseManagement() {
   const [studentForm, setStudentForm] = useState({ student_id: '', name: '', email: '', group_assignment: '' });
   const [studentFormError, setStudentFormError] = useState('');
 
+  // State for sorting courses table
+  const [sortConfig, setSortConfig] = useState({ key: 'course_name', direction: 'asc' });
+
+  // Sorting handler
+
   // State for CSV upload
   const [csvUploadOpen, setCsvUploadOpen] = useState(false);
   const [csvFile, setCsvFile] = useState(null);
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvUploadError, setCsvUploadError] = useState('');
   const [csvUploadResults, setCsvUploadResults] = useState(null);
+
+  // State for delete all students
+  const [deleteAllStudentsOpen, setDeleteAllStudentsOpen] = useState(false);
+  const [deleteAllStudentsLoading, setDeleteAllStudentsLoading] = useState(false);
+
+  // State for evaluation management
+  const [evaluationStatusOpen, setEvaluationStatusOpen] = useState(false);
+  const [evaluationStatusLoading, setEvaluationStatusLoading] = useState(false);
+  const [evaluationStatus, setEvaluationStatus] = useState(null);
+  const [selectedCourseForEval, setSelectedCourseForEval] = useState(null);
+
+  // State for test evaluation
+  const [testEvaluationOpen, setTestEvaluationOpen] = useState(false);
+  const [testEvaluationData, setTestEvaluationData] = useState(null);
+  const [testEvaluationLoading, setTestEvaluationLoading] = useState(false);
+
+  // State for sending evaluations (per course)
+  const [sendingEvaluations, setSendingEvaluations] = useState({});
+
+  // State for resetting evaluation state
+  const [resettingEvaluations, setResettingEvaluations] = useState(false);
+  // State for showing evaluation reset confirmation dialog
+  const [showEvalResetDialog, setShowEvalResetDialog] = useState(false);
+  const [pendingEvalResetCourseId, setPendingEvalResetCourseId] = useState(null);
+  const [pendingTeamAction, setPendingTeamAction] = useState(null); // { type: 'add'|'remove', studentId }
 
   // Handler stubs for add, edit, delete
   const handleAddStudent = async () => {
@@ -76,13 +125,16 @@ function CourseManagement() {
     try {
       await api.post(`/courses/${studentsCourse._id || studentsCourse.id}/students`, studentForm);
       setAlert({ severity: 'success', message: 'Student added successfully' });
-      setAddStudentOpen(false);
+      setAddStudentOpen(false); // Only close the Add Student dialog
       setStudentForm({ student_id: '', name: '', email: '', group_assignment: '' });
       // Refresh students list
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
-      setStudents(response.data);
-      // Re-apply current search filters
-      handleStudentSearchChange('student_id', studentSearch.student_id);
+  setStudents(response.data);
+  setFilteredStudents(response.data); // Immediately update filtered list
+  // Reset search filters so all students are shown
+  setStudentSearch({ student_id: '', name: '', email: '', team: '' });
+      // Ensure Manage Students dialog stays open and refreshed
+      setStudentsDialogOpen(true);
     } catch (error) {
       if (error.response && error.response.data && error.response.data.error && error.response.data.error.message) {
         setStudentFormError(error.response.data.error.message);
@@ -193,6 +245,46 @@ function CourseManagement() {
     } else {
       setCsvUploadError('Please select a valid CSV file');
       setCsvFile(null);
+    }
+  };
+
+  // Delete All Students handler
+  const handleDeleteAllStudents = async () => {
+    if (!studentsCourse) return;
+    
+    setDeleteAllStudentsLoading(true);
+    
+    try {
+      const response = await api.delete(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
+      
+      setAlert({ 
+        severity: 'success', 
+        message: `${response.data.message} (${response.data.deleted_students} students, ${response.data.deleted_teams} teams deleted)` 
+      });
+      
+      // Clear students and teams data immediately
+      setStudents([]);
+      setFilteredStudents([]);
+      setTeams([]);
+      setFilteredTeams([]);
+      
+      // Clear search filters
+      setStudentSearch({ student_id: '', name: '', email: '', team: '' });
+      setTeamSearch({ team_name: '' });
+      setShowStudentSearch(false);
+      setShowTeamSearch(false);
+      
+      // Close the delete confirmation dialog
+      setDeleteAllStudentsOpen(false);
+      
+      // Refresh the main courses list to update counts
+      await fetchCoursesWithCounts();
+      
+    } catch (error) {
+      const errorMessage = error.response?.data?.error?.message || 'Failed to delete all students';
+      setAlert({ severity: 'error', message: errorMessage });
+    } finally {
+      setDeleteAllStudentsLoading(false);
     }
   };
 // ...existing code...
@@ -384,7 +476,6 @@ function CourseManagement() {
     </Dialog>
   );
 
-// ...existing code...
   const [studentsDialogOpen, setStudentsDialogOpen] = useState(false);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [students, setStudents] = useState([]);
@@ -709,51 +800,110 @@ function CourseManagement() {
 
   const handleAddStudentToTeam = async (studentId) => {
     if (!selectedTeam || !teamsCourse) return;
-    
     try {
-      await api.post(`/courses/${teamsCourse._id}/teams/${selectedTeam._id}/students/${studentId}`);
-      
-      // Move student from available to team
-      const student = availableStudents.find(s => s._id === studentId);
-      if (student) {
-        setTeamStudents(prev => [...prev, { ...student, team_id: selectedTeam._id, group_assignment: selectedTeam.team_name }]);
-        setAvailableStudents(prev => prev.filter(s => s._id !== studentId));
+      // Check if evaluations have been sent BEFORE making changes
+      const evalStatusResp = await api.get(`/courses/${teamsCourse._id}/evaluations/status`);
+      if (evalStatusResp.data && evalStatusResp.data.evaluations_sent) {
+        setPendingEvalResetCourseId(teamsCourse._id);
+        setPendingTeamAction({ type: 'add', studentId, selectedTeam, teamsCourse });
+        setShowEvalResetDialog(true);
+        return;
       }
-      
-      // Refresh teams list to update counts
-      const teamsResponse = await api.get(`/courses/${teamsCourse._id}/teams`);
-      setTeams(teamsResponse.data);
-      
-      setAlert({ severity: 'success', message: `Student added to ${selectedTeam.team_name}` });
+      // If not sent, proceed as normal
+      await doAddStudentToTeam(studentId, selectedTeam, teamsCourse);
     } catch (error) {
       console.error('Error adding student to team:', error);
       setAlert({ severity: 'error', message: 'Failed to add student to team' });
     }
   };
 
+  // Actual add logic, separated for reuse
+  const doAddStudentToTeam = async (studentId, teamOverride, courseOverride) => {
+    const team = teamOverride || selectedTeam;
+    const course = courseOverride || teamsCourse;
+    if (!team || !course) return;
+    await api.post(`/courses/${course._id}/teams/${team._id}/students/${studentId}`);
+    // Move student from available to team
+    const student = availableStudents.find(s => s._id === studentId);
+    if (student) {
+      setTeamStudents(prev => [...prev, { ...student, team_id: team._id, group_assignment: team.team_name }]);
+      setAvailableStudents(prev => prev.filter(s => s._id !== studentId));
+    }
+    // Refresh teams list to update counts
+    const teamsResponse = await api.get(`/courses/${course._id}/teams`);
+    setTeams(teamsResponse.data);
+    setAlert({ severity: 'success', message: `Student added to ${team.team_name}` });
+    // Refresh students in team dialog
+    await handleManageTeamStudents(team);
+  };
+
   const handleRemoveStudentFromTeam = async (studentId) => {
     if (!selectedTeam || !teamsCourse) return;
-    
     try {
-      await api.delete(`/courses/${teamsCourse._id}/teams/${selectedTeam._id}/students/${studentId}`);
-      
-      // Move student from team to available
-      const student = teamStudents.find(s => s._id === studentId);
-      if (student) {
-        setAvailableStudents(prev => [...prev, { ...student, team_id: null, group_assignment: '' }]);
-        setTeamStudents(prev => prev.filter(s => s._id !== studentId));
+      // Check if evaluations have been sent BEFORE making changes
+      const evalStatusResp = await api.get(`/courses/${teamsCourse._id}/evaluations/status`);
+      if (evalStatusResp.data && evalStatusResp.data.evaluations_sent) {
+        setPendingEvalResetCourseId(teamsCourse._id);
+        setPendingTeamAction({ type: 'remove', studentId, selectedTeam, teamsCourse });
+        setShowEvalResetDialog(true);
+        return;
       }
-      
-      // Refresh teams list to update counts
-      const teamsResponse = await api.get(`/courses/${teamsCourse._id}/teams`);
-      setTeams(teamsResponse.data);
-      
-      setAlert({ severity: 'success', message: `Student removed from ${selectedTeam.team_name}` });
+      // If not sent, proceed as normal
+      await doRemoveStudentFromTeam(studentId, selectedTeam, teamsCourse);
     } catch (error) {
       console.error('Error removing student from team:', error);
       setAlert({ severity: 'error', message: 'Failed to remove student from team' });
     }
   };
+
+  // Actual remove logic, separated for reuse
+  const doRemoveStudentFromTeam = async (studentId, teamOverride, courseOverride) => {
+    const team = teamOverride || selectedTeam;
+    const course = courseOverride || teamsCourse;
+    if (!team || !course) return;
+    await api.delete(`/courses/${course._id}/teams/${team._id}/students/${studentId}`);
+    // Move student from team to available
+    const student = teamStudents.find(s => s._id === studentId);
+    if (student) {
+      setAvailableStudents(prev => [...prev, { ...student, team_id: null, group_assignment: '' }]);
+      setTeamStudents(prev => prev.filter(s => s._id !== studentId));
+    }
+    // Refresh teams list to update counts
+    const teamsResponse = await api.get(`/courses/${course._id}/teams`);
+    setTeams(teamsResponse.data);
+    setAlert({ severity: 'success', message: `Student removed from ${team.team_name}` });
+    // Refresh students in team dialog
+    await handleManageTeamStudents(team);
+  };
+
+  // Handler for confirming evaluation reset and then performing the pending team action
+  const handleConfirmEvalReset = async () => {
+    console.log('handleConfirmEvalReset called', { pendingEvalResetCourseId, pendingTeamAction });
+    if (!pendingEvalResetCourseId || !pendingTeamAction) {
+      console.log('Missing pendingEvalResetCourseId or pendingTeamAction');
+      return;
+    }
+    setShowEvalResetDialog(false);
+    await handleResetEvaluationState(pendingEvalResetCourseId);
+    // After reset, perform the pending action with stored team/course
+    if (pendingTeamAction.type === 'add') {
+      console.log('Proceeding with doAddStudentToTeam', pendingTeamAction);
+      await doAddStudentToTeam(pendingTeamAction.studentId, pendingTeamAction.selectedTeam, pendingTeamAction.teamsCourse);
+    } else if (pendingTeamAction.type === 'remove') {
+      console.log('Proceeding with doRemoveStudentFromTeam', pendingTeamAction);
+      await doRemoveStudentFromTeam(pendingTeamAction.studentId, pendingTeamAction.selectedTeam, pendingTeamAction.teamsCourse);
+    }
+    setPendingEvalResetCourseId(null);
+    setPendingTeamAction(null);
+  };
+
+  // Handler for cancelling evaluation reset
+  const handleCancelEvalReset = () => {
+    setShowEvalResetDialog(false);
+    setPendingEvalResetCourseId(null);
+    setPendingTeamAction(null);
+  };
+  // ...existing code...
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [courseToEdit, setCourseToEdit] = useState(null);
@@ -956,14 +1106,183 @@ function CourseManagement() {
   };
 
   const handleSendInvitations = async (courseId) => {
+    setSendingEvaluations(prev => ({ ...prev, [courseId]: true }));
+    
+    // First check if backend is reachable
     try {
+      console.log('Testing backend connectivity...');
+      // Test with the root endpoint that we know exists
+      const testUrl = window.location.hostname.includes('onrender.com') 
+        ? 'https://peer-evaluation-backend.onrender.com/' 
+        : 'http://localhost:5000/';
+      console.log('Testing backend URL:', testUrl);
+      const testResponse = await fetch(testUrl);
+      if (!testResponse.ok) {
+        throw new Error(`Backend returned ${testResponse.status}`);
+      }
+      const result = await testResponse.json();
+      console.log('Backend response:', result);
+      console.log('Backend is reachable, proceeding with evaluation send...');
+    } catch (connectError) {
+      console.error('Backend connectivity test failed:', connectError);
+      setSendingEvaluations(prev => ({ ...prev, [courseId]: false }));
+      setAlert({
+        severity: 'error',
+        message: '❌ Cannot connect to backend server. Please check if the backend is running.'
+      });
+      return;
+    }
+    
+    try {
+      console.log(`Sending evaluations for course: ${courseId}`);
+      console.log('API Base URL:', api.defaults.baseURL);
+      console.log('Full URL:', `${api.defaults.baseURL}/courses/${courseId}/evaluations/send`);
+      
       const response = await api.post(`/courses/${courseId}/evaluations/send`);
+      setAlert({ 
+        severity: 'success', 
+        message: `✅ ${response.data.message} - Emails sent to ${response.data.emails_sent || 'all'} students`
+      });
+      // Close the evaluation status dialog if open
+      setEvaluationStatusOpen(false);
+      // Refresh the evaluation status after sending
+      setTimeout(() => {
+        handleViewEvaluationStatus({ _id: courseId, id: courseId });
+      }, 1000);
+    } catch (error) {
+      console.error('Send evaluations error:', error);
+      
+      let errorMessage = 'Failed to send evaluation invitations';
+      
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Email sending is taking longer than expected. This is normal for the first time. Please wait a few more minutes and check your email, or try again.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error - check backend logs for SMTP configuration issues';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Authentication failed - please log in again';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error?.message) {
+        errorMessage = error.response.data.error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setAlert({ 
+        severity: 'error', 
+        message: `❌ ${errorMessage}` 
+      });
+    } finally {
+      setSendingEvaluations(prev => ({ ...prev, [courseId]: false }));
+    }
+  };
+
+  const handleResetEvaluationState = async (courseId) => {
+    setResettingEvaluations(true);
+    try {
+      const response = await api.delete(`/courses/${courseId}/evaluations/reset`);
+      setAlert({
+        severity: 'success',
+        message: `✅ ${response.data.message} - Cleared ${response.data.tokens_cleared} tokens and ${response.data.evaluations_deleted} evaluations`
+      });
+      
+      // Refresh evaluation status after reset
+      setTimeout(() => {
+        const course = { _id: courseId, id: courseId };
+        handleViewEvaluationStatus(course);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Reset evaluation state error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to reset evaluation state';
+      setAlert({
+        severity: 'error',
+        message: `❌ ${errorMessage}`
+      });
+    } finally {
+      setResettingEvaluations(false);
+    }
+  };
+
+  const handleViewEvaluationStatus = async (course) => {
+    setSelectedCourseForEval(course);
+    setEvaluationStatusLoading(true);
+    setEvaluationStatusOpen(true);
+    
+    try {
+      const response = await api.get(`/courses/${course._id || course.id}/evaluations/status`);
+      setEvaluationStatus(response.data);
+    } catch (error) {
+      setAlert({ severity: 'error', message: 'Failed to load evaluation status' });
+      setEvaluationStatus(null);
+    } finally {
+      setEvaluationStatusLoading(false);
+    }
+  };
+
+  const handleSendReminders = async (courseId) => {
+    try {
+      const response = await api.post(`/courses/${courseId}/evaluations/remind`);
       setAlert({ 
         severity: 'success', 
         message: response.data.message 
       });
+      
+      // Refresh evaluation status if dialog is open
+      if (evaluationStatusOpen && (selectedCourseForEval?._id || selectedCourseForEval?.id) === courseId) {
+        const statusResponse = await api.get(`/courses/${courseId}/evaluations/status`);
+        setEvaluationStatus(statusResponse.data);
+      }
     } catch (error) {
-      setAlert({ severity: 'error', message: 'Failed to send invitations' });
+      setAlert({ severity: 'error', message: 'Failed to send reminders' });
+    }
+  };
+
+  const handleTestEvaluation = async (course) => {
+    setTestEvaluationLoading(true);
+    setTestEvaluationOpen(true);
+    
+    try {
+      // First check if evaluations have been sent
+      const statusResponse = await api.get(`/courses/${course._id || course.id}/evaluations/status`);
+      const evaluationStatus = statusResponse.data;
+      
+      if (!evaluationStatus.evaluations_sent) {
+        setTestEvaluationData({
+          course: course,
+          evaluations_sent: false
+        });
+        return;
+      }
+      
+      // Get students for this course to find evaluation tokens
+      const studentsResponse = await api.get(`/courses/${course._id || course.id}/students`);
+      const students = studentsResponse.data;
+      
+      if (students.length === 0) {
+        setAlert({ severity: 'warning', message: 'No students found in this course to test evaluations' });
+        setTestEvaluationData(null);
+      } else {
+        // Use the first student's token for testing
+        const testStudent = students[0];
+        const frontendURL = process.env.NODE_ENV === 'production'
+          ? 'https://peer-evaluation-frontend.onrender.com'
+          : 'http://localhost:3000';
+        const evaluationUrl = `${frontendURL}/evaluate/${testStudent.evaluation_token}`;
+        
+        setTestEvaluationData({
+          course: course,
+          student: testStudent,
+          evaluationUrl: evaluationUrl,
+          allStudents: students,
+          evaluations_sent: true
+        });
+      }
+    } catch (error) {
+      setAlert({ severity: 'error', message: 'Failed to load test evaluation data' });
+      setTestEvaluationData(null);
+    } finally {
+      setTestEvaluationLoading(false);
     }
   };
 
@@ -972,11 +1291,85 @@ function CourseManagement() {
     navigate('/');
   };
 
+  // Delete All Students Confirmation Dialog
+  const deleteAllStudentsDialog = (
+    <Dialog 
+      open={deleteAllStudentsOpen} 
+      onClose={() => setDeleteAllStudentsOpen(false)} 
+      maxWidth="sm" 
+      fullWidth
+    >
+      <DialogTitle>Delete All Students</DialogTitle>
+      <DialogContent>
+        <Typography variant="body1" sx={{ mb: 2 }}>
+          Are you sure you want to delete ALL students from this course?
+        </Typography>
+        <Typography variant="body2" color="error" sx={{ mb: 2 }}>
+          This action will:
+        </Typography>
+        <Box component="ul" sx={{ mt: 1, pl: 2, color: 'error.main' }}>
+          <li>Delete all {students.length} students from the course</li>
+          <li>Delete all teams (since they will be empty)</li>
+          <li>This action cannot be undone</li>
+        </Box>
+        <Typography variant="body2" sx={{ mt: 2, fontWeight: 'bold' }}>
+          Type "DELETE ALL" to confirm:
+        </Typography>
+        <TextField
+          fullWidth
+          size="small"
+          sx={{ mt: 1 }}
+          placeholder="Type DELETE ALL to confirm"
+          id="delete-confirmation"
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setDeleteAllStudentsOpen(false)}>
+          Cancel
+        </Button>
+        <Button 
+          onClick={() => {
+            const confirmationInput = document.getElementById('delete-confirmation');
+            if (confirmationInput.value === 'DELETE ALL') {
+              handleDeleteAllStudents();
+            } else {
+              setAlert({ severity: 'error', message: 'Please type "DELETE ALL" to confirm' });
+            }
+          }}
+          variant="contained" 
+          color="error"
+          disabled={deleteAllStudentsLoading || students.length === 0}
+          startIcon={<DeleteIcon />}
+        >
+          {deleteAllStudentsLoading ? 'Deleting...' : 'Delete All Students'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   return (
     <div className={styles.courseManagementContainer}>
+      {/* Evaluation Reset Confirmation Dialog */}
+      <Dialog open={showEvalResetDialog} onClose={handleCancelEvalReset} maxWidth="xs" fullWidth>
+        {console.log('Eval Reset Dialog rendered', { showEvalResetDialog, pendingEvalResetCourseId, pendingTeamAction })}
+        <DialogTitle>Evaluations Already Sent</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Evaluations have already been sent for this course. If you continue, the evaluation state will be reset and you will need to resend evaluations. This will clear all evaluation tokens and responses for this course.
+          </Typography>
+          <Typography variant="body2" color="error" sx={{ mb: 2 }}>
+            This action cannot be undone. Do you want to continue?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelEvalReset} color="secondary">Cancel</Button>
+          <Button onClick={handleConfirmEvalReset} color="warning" variant="contained">Continue</Button>
+        </DialogActions>
+      </Dialog>
       {addStudentDialog}
       {editStudentDialog}
       {csvUploadDialog}
+      {deleteAllStudentsDialog}
       <Box display="flex" justifyContent="flex-end" mb={2}>
         <Button variant="outlined" className={styles.logoutButton} color="secondary" onClick={handleLogout}>
           Logout
@@ -1088,10 +1481,25 @@ function CourseManagement() {
           <Table style={{ width: '100%' }}>
             <TableHead>
               <TableRow>
-                <TableCell>Course Name</TableCell>
-                <TableCell>Course Number</TableCell>
-                <TableCell>Course Section</TableCell>
-                <TableCell>Semester</TableCell>
+                <TableCell
+                  onClick={() => setSortConfig(prev => ({ key: 'course_name', direction: prev.key === 'course_name' && prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                  style={{ cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                >
+                  Course Name {sortConfig.key === 'course_name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                </TableCell>
+                <TableCell
+                  onClick={() => setSortConfig(prev => ({ key: 'course_number', direction: prev.key === 'course_number' && prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                  style={{ cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                >
+                  Course Number {sortConfig.key === 'course_number' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                </TableCell>
+                <TableCell style={{ whiteSpace: 'nowrap' }}>Course Section</TableCell>
+                <TableCell
+                  onClick={() => setSortConfig(prev => ({ key: 'semester', direction: prev.key === 'semester' && prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                  style={{ cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                >
+                  Semester {sortConfig.key === 'semester' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                </TableCell>
                 <TableCell align="center">Students</TableCell>
                 <TableCell align="center">Teams</TableCell>
                 <TableCell align="center">Status</TableCell>
@@ -1112,17 +1520,53 @@ function CourseManagement() {
                   </TableCell>
                 </TableRow>
               ) : (
-                courses.map((course) => (
+                // Sort courses before mapping
+                [...courses].sort((a, b) => {
+                  const { key, direction } = sortConfig;
+                  let aValue = a[key];
+                  let bValue = b[key];
+                  // Handle alternate keys for course_number
+                  if (key === 'course_number') {
+                    aValue = a.course_number || a.course_code || '';
+                    bValue = b.course_number || b.course_code || '';
+                  }
+                  // Handle numbers for student_count/team_count
+                  if (key === 'student_count' || key === 'team_count') {
+                    aValue = a[key] || 0;
+                    bValue = b[key] || 0;
+                  }
+                  // Fallback to string compare
+                  if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    aValue = aValue.toLowerCase();
+                    bValue = bValue.toLowerCase();
+                  }
+                  if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+                  if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+
+                  // If sorting by semester, use course_name as secondary (alphabetical)
+                  if (key === 'semester') {
+                    const aName = (a.course_name || '').toLowerCase();
+                    const bName = (b.course_name || '').toLowerCase();
+                    if (aName < bName) return -1;
+                    if (aName > bName) return 1;
+                  }
+                  // Always use course_section as final tiebreaker (numeric, ascending)
+                  const aSection = parseInt(a.course_section, 10) || 0;
+                  const bSection = parseInt(b.course_section, 10) || 0;
+                  if (aSection < bSection) return -1;
+                  if (aSection > bSection) return 1;
+                  return 0;
+                }).map((course) => (
                   <TableRow key={course.id || course._id}>
                     <TableCell>{course.course_name}</TableCell>
                     <TableCell>{course.course_number || course.course_code || 'N/A'}</TableCell>
                     <TableCell>{course.course_section || 'N/A'}</TableCell>
-                    <TableCell>{course.semester}</TableCell>
+                    <TableCell style={{ whiteSpace: 'nowrap' }}>{course.semester}</TableCell>
                     <TableCell align="center">
                       <Chip label={course.student_count || 0} size="small" />
                     </TableCell>
                     <TableCell align="center">
-                      <Chip label={course.team_count || 0} size="small" />
+                      <Chip label={Number.isInteger(course.team_count) && course.team_count > 0 ? course.team_count : 0} size="small" />
                     </TableCell>
                     <TableCell align="center">
                       <Chip 
@@ -1257,7 +1701,7 @@ function CourseManagement() {
                     <TableCell>Student ID</TableCell>
                     <TableCell>Name</TableCell>
                     <TableCell>Email</TableCell>
-                    <TableCell>Team Assignment</TableCell>
+                    <TableCell>Team</TableCell>
                     <TableCell align="center">Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -1290,6 +1734,16 @@ function CourseManagement() {
           )}
         </DialogContent>
         <DialogActions>
+          <Button 
+            onClick={() => setDeleteAllStudentsOpen(true)}
+            color="error"
+            variant="outlined"
+            disabled={!students || students.length === 0}
+            startIcon={<DeleteIcon />}
+          >
+            Delete All Students
+          </Button>
+          <Box sx={{ flex: 1 }} />
           <Button onClick={() => { setStudentsDialogOpen(false); fetchCoursesWithCounts(); }}>Close</Button>
         </DialogActions>
       </Dialog>
@@ -1434,18 +1888,19 @@ function CourseManagement() {
                           <IconButton 
                             size="small" 
                             color="primary" 
-                            title="Edit Team"
-                            onClick={() => handleEditTeam(team)}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton 
-                            size="small" 
-                            color="primary" 
                             title="Manage Students"
                             onClick={() => handleManageTeamStudents(team)}
                           >
                             <PeopleIcon />
+                          </IconButton>
+                          <IconButton 
+                            size="small" 
+                            color="success" 
+                            title="Send Evaluations to Team"
+                            onClick={() => handleSendTeamEvaluations(team)}
+                            disabled={sendingTeamEvaluations[team._id || team.id]}
+                          >
+                            {sendingTeamEvaluations[team._id || team.id] ? <CircularProgress size={20} /> : <SendIcon />}
                           </IconButton>
                           <IconButton 
                             size="small" 
@@ -1455,7 +1910,16 @@ function CourseManagement() {
                           >
                             <DeleteIcon />
                           </IconButton>
+                          <IconButton 
+                            size="small" 
+                            color="primary" 
+                            title="Edit Team"
+                            onClick={() => handleEditTeam(team)}
+                          >
+                            <EditIcon />
+                          </IconButton>
                         </TableCell>
+
                       </TableRow>
                     ))
                   )}
@@ -1649,16 +2113,35 @@ function CourseManagement() {
                         </IconButton>
                         <IconButton
                           size="small"
-                          color="primary"
-                          onClick={() => handleSendInvitations(course.id)}
+                          color="success"
+                          onClick={() => handleSendInvitations(course._id || course.id)}
                           title="Send Evaluations"
+                          disabled={sendingEvaluations[course._id || course.id]}
                         >
-                          <SendIcon />
+                          {sendingEvaluations[course._id || course.id] ? <CircularProgress size={20} /> : <SendIcon />}
                         </IconButton>
                         <IconButton
                           size="small"
+                          color="secondary"
+                          onClick={() => handleViewEvaluationStatus(course)}
+                          title="Evaluation Status"
+                        >
+                          <BarChartIcon />
+                        </IconButton>
+                        {/* <IconButton
+                          size="small"
+                          color="info"
+                          onClick={() => handleTestEvaluation(course)}
+                          title="Test Evaluation Form"
+                        >
+                          <Typography variant="h6" component="span" sx={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
+                            T
+                          </Typography>
+                        </IconButton> */}
+                        <IconButton
+                          size="small"
                           color="primary"
-                          onClick={() => navigate(`/courses/${course.id}/reports`)}
+                          onClick={() => navigate(`/reports?course=${course._id || course.id}`)}
                           title="View Reports"
                         >
                           <AssessmentIcon />
@@ -1888,6 +2371,316 @@ function CourseManagement() {
           >
             Upload
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Evaluation Status Dialog */}
+      <Dialog 
+        open={evaluationStatusOpen} 
+        onClose={() => setEvaluationStatusOpen(false)} 
+        maxWidth="lg" 
+        fullWidth
+      >
+        <DialogTitle>
+          Evaluation Status - {selectedCourseForEval?.course_number || selectedCourseForEval?.course_code} {selectedCourseForEval?.course_section || ''} - {selectedCourseForEval?.course_name}
+        </DialogTitle>
+        <DialogContent>
+          {evaluationStatusLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+              <LinearProgress sx={{ width: '100%' }} />
+            </Box>
+          ) : evaluationStatus ? (
+            <Box>
+              {/* Check if evaluations have been sent */}
+              {!evaluationStatus.evaluations_sent ? (
+                <Alert severity="info" sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Evaluations Have Not Been Sent
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    Send evaluations to students to begin tracking completion status.
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={sendingEvaluations[selectedCourseForEval._id || selectedCourseForEval.id] ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                    onClick={() => {
+                      handleSendInvitations(selectedCourseForEval._id || selectedCourseForEval.id);
+                    }}
+                    size="large"
+                    disabled={sendingEvaluations[selectedCourseForEval._id || selectedCourseForEval.id]}
+                  >
+                    {sendingEvaluations[selectedCourseForEval._id || selectedCourseForEval.id] ? 'Sending Evaluations...' : 'Send Evaluations Now'}
+                  </Button>
+                </Alert>
+              ) : (
+                <>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6">
+                      Progress: {evaluationStatus.completed_count}/{evaluationStatus.total_count} evaluations completed
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<SendIcon />}
+                      onClick={() => handleSendReminders(selectedCourseForEval._id || selectedCourseForEval.id)}
+                      disabled={evaluationStatus.completed_count === evaluationStatus.total_count}
+                    >
+                      Send Reminders
+                    </Button>
+                  </Box>
+                  
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={evaluationStatus.total_count > 0 ? (evaluationStatus.completed_count / evaluationStatus.total_count) * 100 : 0}
+                    sx={{ height: 10, borderRadius: 5, mb: 3 }}
+                  />
+                  
+                  {/* Team-based view */}
+                  {(() => {
+                    // Group students by team
+                    const teamGroups = evaluationStatus.students?.reduce((acc, student) => {
+                      const teamName = student.team || 'No Team';
+                      if (!acc[teamName]) {
+                        acc[teamName] = [];
+                      }
+                      acc[teamName].push(student);
+                      return acc;
+                    }, {}) || {};
+
+                    const sortedTeams = Object.entries(teamGroups).sort(([a], [b]) => {
+                      // Sort teams by name, with "No Team" last
+                      if (a === 'No Team') return 1;
+                      if (b === 'No Team') return -1;
+                      
+                      // Handle team names with numbers (e.g., "Team 1", "Team 10", "Team 2")
+                      const aMatch = a.match(/^(.+?)(\d+)(.*)$/);
+                      const bMatch = b.match(/^(.+?)(\d+)(.*)$/);
+                      
+                      if (aMatch && bMatch) {
+                        // Both have numbers - compare prefix first
+                        const prefixCompare = aMatch[1].localeCompare(bMatch[1]);
+                        if (prefixCompare !== 0) return prefixCompare;
+                        
+                        // Same prefix - compare numbers numerically
+                        const numA = parseInt(aMatch[2]);
+                        const numB = parseInt(bMatch[2]);
+                        if (numA !== numB) return numA - numB;
+                        
+                        // Same number - compare suffix
+                        return aMatch[3].localeCompare(bMatch[3]);
+                      }
+                      
+                      // Fallback to regular string comparison
+                      return a.localeCompare(b);
+                    });
+
+                    return (
+                      <Grid container spacing={2}>
+                        {sortedTeams.map(([teamName, teamStudents]) => {
+                          const completedCount = teamStudents.filter(s => s.completed).length;
+                          const totalCount = teamStudents.length;
+                          const completionRate = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+                          
+                          return (
+                            <Grid item xs={12} sm={6} md={4} lg={2.4} key={teamName}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
+                                      <GroupIcon sx={{ mr: 1 }} />
+                                      {teamName}
+                                    </Typography>
+                                    <Chip
+                                      label={`${completedCount}/${totalCount}`}
+                                      color={completionRate === 100 ? 'success' : completionRate > 50 ? 'warning' : 'error'}
+                                      size="small"
+                                    />
+                                  </Box>
+                                  
+                                  <LinearProgress 
+                                    variant="determinate" 
+                                    value={completionRate}
+                                    sx={{ 
+                                      height: 8, 
+                                      borderRadius: 4, 
+                                      mb: 2,
+                                      '& .MuiLinearProgress-bar': {
+                                        backgroundColor: completionRate === 100 ? '#4caf50' : completionRate > 50 ? '#ff9800' : '#f44336'
+                                      }
+                                    }}
+                                  />
+                                  
+                                  <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
+                                    {teamStudents.map((student, index) => (
+                                      <Box key={student.student_id || index} sx={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center',
+                                        py: 0.5,
+                                        borderBottom: index < teamStudents.length - 1 ? '1px solid #eee' : 'none'
+                                      }}>
+                                        <Box>
+                                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                            {student.name}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            {student.student_id}
+                                          </Typography>
+                                        </Box>
+                                        <Box sx={{ textAlign: 'right' }}>
+                                          <Chip 
+                                            label={student.completed ? 'Done' : 'Pending'} 
+                                            color={student.completed ? 'success' : 'warning'}
+                                            size="small"
+                                            sx={{ mb: 0.5 }}
+                                          />
+                                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                            {student.last_activity ? new Date(student.last_activity).toLocaleDateString() : 'Never'}
+                                          </Typography>
+                                        </Box>
+                                      </Box>
+                                    ))}
+                                  </Box>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          );
+                        })}
+                      </Grid>
+                    );
+                  })()}
+                </>
+              )}
+            </Box>
+          ) : (
+            <Alert severity="info">No evaluation data available for this course.</Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => handleResetEvaluationState(selectedCourseForEval._id || selectedCourseForEval.id)}
+            color="warning"
+            disabled={resettingEvaluations}
+            startIcon={resettingEvaluations ? <CircularProgress size={16} /> : <ClearIcon />}
+          >
+            {resettingEvaluations ? 'Resetting...' : 'Reset Evaluation State'}
+          </Button>
+          <Button onClick={() => setEvaluationStatusOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Test Evaluation Dialog */}
+      <Dialog 
+        open={testEvaluationOpen} 
+        onClose={() => setTestEvaluationOpen(false)} 
+        maxWidth="md" 
+        fullWidth
+      >
+        <DialogTitle>
+          Test Evaluation Form - {testEvaluationData?.course?.course_number || testEvaluationData?.course?.course_code} {testEvaluationData?.course?.course_section || ''} - {testEvaluationData?.course?.course_name}
+        </DialogTitle>
+        <DialogContent>
+          {testEvaluationLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+              <LinearProgress sx={{ width: '100%' }} />
+            </Box>
+          ) : testEvaluationData ? (
+            <Box>
+              {!testEvaluationData.evaluations_sent ? (
+                <Alert severity="info" sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Evaluations Have Not Been Sent
+                  </Typography>
+                  <Typography variant="body1">
+                    You must send evaluations to students before you can test the evaluation form.
+                    Use the "Send Evaluations" button in the course management interface.
+                  </Typography>
+                </Alert>
+              ) : (
+                <>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    This allows you to test the student evaluation form using real student data from your course.
+                  </Alert>
+                  
+                  <Typography variant="h6" gutterBottom>
+                    Test Student: {testEvaluationData.student.name} ({testEvaluationData.student.student_id})
+                  </Typography>
+                  
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Email: {testEvaluationData.student.email}
+                  </Typography>
+                  
+                  <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={() => window.open(testEvaluationData.evaluationUrl, '_blank')}
+                      startIcon={<AssessmentIcon />}
+                    >
+                      Open Evaluation Form
+                    </Button>
+                    
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        navigator.clipboard.writeText(testEvaluationData.evaluationUrl);
+                        setAlert({ severity: 'success', message: 'Evaluation URL copied to clipboard' });
+                      }}
+                    >
+                      Copy URL
+                    </Button>
+                  </Box>
+                  
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Evaluation URL:</strong>
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    value={testEvaluationData.evaluationUrl}
+                    InputProps={{
+                      readOnly: true,
+                    }}
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                  
+                  {testEvaluationData.allStudents.length > 1 && (
+                    <Box>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Other students in course:</strong>
+                      </Typography>
+                      <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                        {testEvaluationData.allStudents.slice(1).map((student) => (
+                          <Box key={student.student_id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1, borderBottom: '1px solid #eee' }}>
+                            <Typography variant="body2">
+                              {student.name} ({student.student_id})
+                            </Typography>
+                            <Button
+                              size="small"
+                              onClick={() => {
+                                const frontendURL = process.env.NODE_ENV === 'production'
+                                  ? 'https://peer-evaluation-frontend.onrender.com'
+                                  : 'http://localhost:3000';
+                                window.open(`${frontendURL}/evaluate/${student.evaluation_token}`, '_blank');
+                              }}
+                            >
+                              Test
+                            </Button>
+                          </Box>
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+                </>
+              )}
+            </Box>
+          ) : (
+            <Alert severity="warning">No evaluation data available for testing.</Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTestEvaluationOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </div>
