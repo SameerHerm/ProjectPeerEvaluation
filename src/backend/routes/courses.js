@@ -41,6 +41,8 @@ router.get('/:course_id/reports/team/:team_id', authenticateToken, reportControl
 router.post('/:course_id/reports/generate', authenticateToken, reportController.generateReport);
 // Evaluation endpoints (subroutes)
 router.post('/:course_id/evaluations/send', authenticateToken, evaluationController.sendEvaluations);
+// Send evaluations to a specific team
+router.post('/:course_id/teams/:team_id/evaluations/send', authenticateToken, evaluationController.sendTeamEvaluations);
 router.get('/:course_id/evaluations/status', authenticateToken, evaluationController.evaluationStatus);
 router.post('/:course_id/evaluations/remind', authenticateToken, evaluationController.remindEvaluations);
 router.delete('/:course_id/evaluations/reset', authenticateToken, studentController.resetEvaluationState);

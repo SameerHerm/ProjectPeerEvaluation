@@ -53,6 +53,23 @@ import styles from '../styles/CourseManagement.module.css';
 import '../App.css';
 
 function CourseManagement() {
+  // --- Team evaluation send state/handler (place after other hooks, before return) ---
+  const [sendingTeamEvaluations, setSendingTeamEvaluations] = useState({});
+
+  const handleSendTeamEvaluations = async (team) => {
+    if (!teamsCourse || !team) return;
+    const teamId = team._id || team.id;
+    setSendingTeamEvaluations((prev) => ({ ...prev, [teamId]: true }));
+    try {
+      await api.post(`/courses/${teamsCourse._id || teamsCourse.id}/teams/${teamId}/evaluations/send`, {});
+      setAlert({ severity: 'success', message: `Evaluation invitations sent to team "${team.team_name}".` });
+      fetchCoursesWithCounts();
+    } catch (error) {
+      setAlert({ severity: 'error', message: error.userMessage || `Failed to send evaluations to team "${team.team_name}".` });
+    } finally {
+      setSendingTeamEvaluations((prev) => ({ ...prev, [teamId]: false }));
+    }
+  };
   // State for add/edit student dialogs
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [editStudentOpen, setEditStudentOpen] = useState(false);
@@ -1871,18 +1888,19 @@ function CourseManagement() {
                           <IconButton 
                             size="small" 
                             color="primary" 
-                            title="Edit Team"
-                            onClick={() => handleEditTeam(team)}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton 
-                            size="small" 
-                            color="primary" 
                             title="Manage Students"
                             onClick={() => handleManageTeamStudents(team)}
                           >
                             <PeopleIcon />
+                          </IconButton>
+                          <IconButton 
+                            size="small" 
+                            color="success" 
+                            title="Send Evaluations to Team"
+                            onClick={() => handleSendTeamEvaluations(team)}
+                            disabled={sendingTeamEvaluations[team._id || team.id]}
+                          >
+                            {sendingTeamEvaluations[team._id || team.id] ? <CircularProgress size={20} /> : <SendIcon />}
                           </IconButton>
                           <IconButton 
                             size="small" 
@@ -1892,7 +1910,16 @@ function CourseManagement() {
                           >
                             <DeleteIcon />
                           </IconButton>
+                          <IconButton 
+                            size="small" 
+                            color="primary" 
+                            title="Edit Team"
+                            onClick={() => handleEditTeam(team)}
+                          >
+                            <EditIcon />
+                          </IconButton>
                         </TableCell>
+
                       </TableRow>
                     ))
                   )}
@@ -2086,7 +2113,7 @@ function CourseManagement() {
                         </IconButton>
                         <IconButton
                           size="small"
-                          color="primary"
+                          color="success"
                           onClick={() => handleSendInvitations(course._id || course.id)}
                           title="Send Evaluations"
                           disabled={sendingEvaluations[course._id || course.id]}

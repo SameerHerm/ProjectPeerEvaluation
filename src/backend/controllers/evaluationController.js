@@ -6,6 +6,88 @@ const EVALUATION_RUBRIC = require('../config/rubric');
 const { sendEvaluationInvitation, sendEvaluationReminder } = require('../utils/emailUtils');
 
 /**
+ * Send evaluation invitations to all students in a specific team
+ */
+exports.sendTeamEvaluations = async (req, res, next) => {
+  try {
+    const { course_id, team_id } = req.params;
+    const { deadline, custom_message } = req.body;
+
+    // Get course details
+    const course = await Course.findById(course_id);
+    if (!course) {
+      const err = new Error('Course not found.');
+      err.code = 'NOT_FOUND';
+      err.status = 404;
+      return next(err);
+    }
+
+    // Get team details
+    const team = await Team.findById(team_id);
+    if (!team || String(team.course_id) !== String(course_id)) {
+      const err = new Error('Team not found or does not belong to this course.');
+      err.code = 'NOT_FOUND';
+      err.status = 404;
+      return next(err);
+    }
+
+    // Get all students in the team
+    const students = await Student.find({ course_id, team_id });
+    if (students.length === 0) {
+      const err = new Error('No students found in this team.');
+      err.code = 'NOT_FOUND';
+      err.status = 404;
+      return next(err);
+    }
+
+    let emailsSent = 0;
+    let failedEmails = [];
+
+    console.log(`Starting to send evaluations to ${students.length} students for team ${team_id} in course ${course_id}`);
+
+    // Send email to each student
+    for (const student of students) {
+      try {
+        // Generate evaluation token if student doesn't have one
+        if (!student.evaluation_token) {
+          const evaluationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          await Student.findByIdAndUpdate(student._id, { evaluation_token: evaluationToken });
+          student.evaluation_token = evaluationToken;
+        }
+
+        const result = await sendEvaluationInvitation(
+          student,
+          course,
+          student.evaluation_token,
+          process.env.FRONTEND_URL || 'http://localhost:3000',
+          deadline
+        );
+        if (result.success) {
+          emailsSent++;
+        } else {
+          failedEmails.push(`${student.name} (${student.email}): ${result.error}`);
+        }
+      } catch (error) {
+        failedEmails.push(`${student.name} (${student.email}): ${error.message}`);
+      }
+    }
+
+    res.status(200).json({
+      message: `Evaluation invitations sent to team successfully.`,
+      emails_sent: emailsSent,
+      total_students: students.length,
+      failed: failedEmails,
+      deadline: deadline
+    });
+
+  } catch (err) {
+    console.error('Error sending team evaluations:', err);
+    err.code = err.code || 'SERVER_ERROR';
+    err.status = err.status || 500;
+    next(err);
+  }
+};
+/**
  * Send evaluation invitations to all students in a course
  */
 exports.sendEvaluations = async (req, res, next) => {
