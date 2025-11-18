@@ -154,7 +154,8 @@ async function sendEvaluationReminder(student, course, evaluationToken, frontend
  * @param {String} token - Reset token
  */
 async function sendPasswordResetEmail(email, token, frontendUrl = 'http://localhost:3000') {
-  const resetUrl = `${frontendUrl}/reset-password/${token}`;
+  const baseUrl = process.env.FRONTEND_URL || frontendUrl;
+  const resetUrl = `${baseUrl}/reset-password/${token}`;
   const subject = 'Password Reset Request';
   const htmlContent = `
     <html>
