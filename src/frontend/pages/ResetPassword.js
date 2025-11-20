@@ -26,7 +26,7 @@ function ResetPassword() {
         : 'http://localhost:5000/api';
       const res = await axios.post(`${baseURL}/auth/update-password`, {
         token,
-        newPassword
+        password: newPassword
       });
       if (res.data.success) {
         setStatus('Password updated successfully! You can now log in.');
