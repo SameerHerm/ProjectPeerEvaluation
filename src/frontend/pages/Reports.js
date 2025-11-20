@@ -583,14 +583,20 @@ function Reports() {
                         </TableCell>
                       )}
                       <TableCell align="center">
-                        <Tooltip title="View Comments">
-                          <IconButton
-                            size="small"
-                            onClick={() => viewStudentComments(student)}
-                          >
-                            <Comment />
-                          </IconButton>
-                        </Tooltip>
+                          {/* Show AI flag if any evaluation for this student is flagged */}
+                          {Array.isArray(student.evaluationDetails) && student.evaluationDetails.some(ev => ev.aiFlags?.flagged) && (
+                            <Tooltip title="AI Flagged Evaluation">
+                              <span role="img" aria-label="flag" style={{ marginRight: 8, fontSize: '1.2em' }}>🚩</span>
+                            </Tooltip>
+                          )}
+                          <Tooltip title="View Comments">
+                            <IconButton
+                              size="small"
+                              onClick={() => viewStudentComments(student)}
+                            >
+                              <Comment />
+                            </IconButton>
+                          </Tooltip>
                       </TableCell>
                     </TableRow>
                   )) : (

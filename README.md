@@ -65,32 +65,61 @@ AI features are optional and will depend on remaining timeline after core milest
 
 ---
 
-## Quick Start
 
-### Option 1: One-Command Startup
-```bash
-# Run this single command in the root folder to start everything:
-npm run dev
-```
+## Getting Started (For New Users)
 
-### Option 2: Use Startup Scripts
-```bash
-# Windows Batch File
-./start.bat
+### Prerequisites
 
-# Windows PowerShell
-./start.ps1
-```
+1. **Install [Node.js and npm](https://nodejs.org/)**
+  - Download and install the LTS version for your operating system.
+  - npm is included with Node.js.
 
-### Option 3: Manual Setup
-```bash
-# Install all dependencies
-npm run setup
+2. **Install [Git](https://git-scm.com/)** (optional, for cloning the repo)
+  - Or download the ZIP from GitHub and extract it.
 
-# Start backend and frontend separately
-npm run start:backend    # Starts backend server on port 5000
-npm run start:frontend   # Starts frontend server on port 3000
-```
+3. **Install [VS Code](https://code.visualstudio.com/)** (already installed)
+
+---
+
+### Setup Steps
+
+1. **Clone or Download the Repository**
+  - Using Git: `git clone <repo-url>`
+  - Or download ZIP and extract.
+
+2. **Open the Project Folder in VS Code**
+
+3. **Install Dependencies**
+  - Open a terminal in VS Code (Ctrl+`)
+  - Run:
+    ```bash
+    npm run setup
+    ```
+  - This will install all required packages for both frontend and backend.
+
+4. **Start the Application**
+  - To start both frontend and backend together:
+    ```bash
+    npm run dev
+    ```
+  - Or use the provided scripts:
+    - Windows Batch: `./start.bat`
+    - PowerShell: `./start.ps1`
+
+5. **Access the App in Your Browser**
+  - Frontend: [http://localhost:3000](http://localhost:3000)
+  - Backend API: [http://localhost:5000](http://localhost:5000)
+
+---
+
+### Troubleshooting
+
+- If you see errors about missing dependencies, re-run `npm run setup`.
+- If ports 3000 or 5000 are in use, close other apps or change the port in the config.
+- For Windows, you may need to allow scripts to run (see PowerShell execution policy).
+- If you have issues with email sending, check your `.env` file for SMTP settings.
+
+---
 
 ### Available Scripts
 - `npm run dev` - Start both frontend and backend servers simultaneously
@@ -98,9 +127,7 @@ npm run start:frontend   # Starts frontend server on port 3000
 - `npm run start:backend` - Start only the backend server
 - `npm run start:frontend` - Start only the frontend server (default React scripts)
 
-### Access the Application
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:5000
+---
 
 ---
 
