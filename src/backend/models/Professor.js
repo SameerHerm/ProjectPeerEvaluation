@@ -36,6 +36,16 @@ const ProfessorSchema = new mongoose.Schema({
 	},
 	securityTokenExpires: {
 		type: Date
+	},
+	aiConcerningWords: {
+		type: [String],
+		default: [
+			'cheat', 'abuse', 'bully', 'inappropriate', 'unfair', 'disrespect', 'threat', 'harass', 'plagiar',
+			'violence', 'unsafe', 'hostile', 'ignore', 'exclude', 'rude', 'lazy', 'fail', 'problem', 'issue',
+			'concern', 'complain', 'uncooperative', 'unresponsive', 'unacceptable', 'dishonest', 'lie', 'steal',
+			'aggressive', 'argument', 'conflict', 'discriminate', 'bias', 'racist', 'sexist', 'toxic', 'unprofessional',
+			'professor', 'teacher', 'instructor', 'faculty', 'grade', 'grading', 'unfair grade', 'unfair grading', 'retaliate', 'retaliation'
+		]
 	}
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 

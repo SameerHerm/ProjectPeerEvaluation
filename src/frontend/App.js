@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import StudentEvaluation from './pages/StudentEvaluation';
 import Reports from './pages/Reports';
 import ResetPassword from './pages/ResetPassword';
+import Settings from './pages/Settings';
 
 function App() {
     return (
@@ -16,6 +17,7 @@ function App() {
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/evaluate/:token" element={<StudentEvaluation />} />
                 <Route path="/reset-password/:token" element={<ResetPassword />} />
+                <Route path="/settings" element={<Settings />} />
                 {/* Catch-all route for debugging */}
                 <Route path="*" element={
                     <div style={{padding: '20px'}}>
@@ -29,6 +31,7 @@ function App() {
                             <li>/reports</li>
                             <li>/evaluate/:token</li>
                             <li>/reset-password/:token</li>
+                        <li>/settings</li>
                         </ul>
                     </div>
                 } />

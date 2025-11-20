@@ -1365,7 +1365,10 @@ function CourseManagement() {
       {editStudentDialog}
       {csvUploadDialog}
       {deleteAllStudentsDialog}
-      <Box display="flex" justifyContent="flex-end" mb={2}>
+      <Box display="flex" justifyContent="flex-end" mb={2} gap={2}>
+        <Button variant="outlined" color="primary" onClick={() => navigate('/settings')}>
+          Settings
+        </Button>
         <Button variant="outlined" className={styles.logoutButton} color="secondary" onClick={handleLogout}>
           Logout
         </Button>

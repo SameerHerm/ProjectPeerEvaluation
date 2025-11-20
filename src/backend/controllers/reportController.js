@@ -179,6 +179,26 @@ exports.getCourseReport = async (req, res, next) => {
       });
     }
 
+    // AI flagging logic
+    const concerningWords = [
+      'cheat', 'abuse', 'bully', 'inappropriate', 'unfair', 'disrespect', 'threat', 'harass', 'plagiar', 'violence', 'unsafe', 'hostile', 'ignore', 'exclude', 'rude', 'lazy', 'fail', 'problem', 'issue', 'concern', 'complain', 'uncooperative', 'unresponsive', 'unacceptable', 'dishonest', 'lie', 'steal', 'aggressive', 'argument', 'conflict', 'discriminate', 'bias', 'racist', 'sexist', 'toxic', 'unprofessional'
+    ];
+
+    function flagEvaluation(evaluation) {
+      // Flag if all ratings are 5 (except participation)
+      const ratings = evaluation.ratings || {};
+      const allFive = ['professionalism', 'communication', 'work_ethic', 'content_knowledge_skills', 'overall_contribution']
+        .every(key => ratings[key] === 5);
+      // Check for concerning words in feedback
+      const feedback = (evaluation.overall_feedback || '').toLowerCase();
+      const concerning = concerningWords.some(word => feedback.includes(word));
+      return {
+        allFive,
+        concerning,
+        flagged: allFive || concerning
+      };
+    }
+
     // Calculate scores for each student
     console.log('🧮 Calculating scores for', students.length, 'students');
     const studentScores = students.map(student => {
@@ -206,12 +226,16 @@ exports.getCourseReport = async (req, res, next) => {
       
       console.log(`📊 Found ${studentEvaluations.length} evaluations for ${student.student_name}`);
       const meanScore = calculateMeanScore(studentEvaluations);
-      
+      // Add AI flags to each evaluation
+      const evaluationDetails = studentEvaluations.map(evaluation => ({
+        ...evaluation.toObject(),
+        aiFlags: flagEvaluation(evaluation)
+      }));
       return {
         student: student,
         originalScore: parseFloat(meanScore.toFixed(2)),
         evaluationsReceived: studentEvaluations.length,
-        evaluationDetails: studentEvaluations
+        evaluationDetails
       };
     });
 
