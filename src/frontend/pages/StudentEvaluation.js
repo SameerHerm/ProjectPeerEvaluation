@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SchoolIcon from '@mui/icons-material/School';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -17,7 +18,10 @@ import {
   CircularProgress,
   Divider,
   Chip,
-  Grid
+  Grid,
+  Avatar,
+  AppBar,
+  Toolbar
 } from '@mui/material';
 import { CheckCircle as CheckIcon, Person as PersonIcon } from '@mui/icons-material';
 import api from '../services/api';
@@ -204,21 +208,27 @@ function StudentEvaluation() {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* Header */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          {evaluationData?.rubric?.title || 'Peer Evaluation'}
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+      {/* AppBar Header */}
+      <AppBar position="static" color="primary" elevation={2} sx={{ mb: 4, borderRadius: 2 }}>
+        <Toolbar>
+          <Avatar sx={{ bgcolor: 'white', color: 'primary.main', mr: 2 }}>
+            <SchoolIcon />
+          </Avatar>
+          <Typography variant="h5" color="inherit" sx={{ flexGrow: 1, fontWeight: 700 }}>
+            {evaluationData?.rubric?.title || 'Peer Evaluation'}
+          </Typography>
+        </Toolbar>
+      </AppBar>
+      <Paper sx={{ p: 3, mb: 3, boxShadow: 3, borderRadius: 3 }}>
+        <Typography variant="h6" color="primary" gutterBottom>
           {evaluationData?.rubric?.description}
         </Typography>
-        
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
-            <Card variant="outlined">
+            <Card variant="outlined" sx={{ boxShadow: 1, borderRadius: 2 }}>
               <CardContent>
-                <Typography variant="h6" gutterBottom>
+                <Typography variant="subtitle1" color="primary" gutterBottom>
                   Course Information
                 </Typography>
                 <Typography variant="body2">
@@ -234,9 +244,9 @@ function StudentEvaluation() {
             </Card>
           </Grid>
           <Grid item xs={12} md={6}>
-            <Card variant="outlined">
+            <Card variant="outlined" sx={{ boxShadow: 1, borderRadius: 2 }}>
               <CardContent>
-                <Typography variant="h6" gutterBottom>
+                <Typography variant="subtitle1" color="primary" gutterBottom>
                   Your Information
                 </Typography>
                 <Typography variant="body2">
@@ -263,77 +273,79 @@ function StudentEvaluation() {
 
       {/* Evaluation Forms */}
       {evaluationData?.teammates?.map((teammate, index) => (
-        <Paper key={teammate._id} sx={{ p: 3, mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <PersonIcon sx={{ mr: 1 }} />
-            <Typography variant="h5">
-              Evaluate: {teammate.name}
-            </Typography>
-            <Chip label={teammate.student_id} sx={{ ml: 2 }} />
-          </Box>
-
-          {/* Rating Criteria */}
-          {evaluationData?.rubric?.criteria?.map((criterion) => (
-            <Box key={criterion.id} sx={{ mb: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                {criterion.name}
+        <Card key={teammate._id} sx={{ p: 3, mb: 4, boxShadow: 4, borderRadius: 3 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+                <PersonIcon />
+              </Avatar>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Evaluate: {teammate.name}
+              </Typography>
+              <Chip label={teammate.student_id} sx={{ ml: 2, fontWeight: 500 }} color="primary" />
+            </Box>
+            <Divider sx={{ mb: 2 }} />
+            {/* Rating Criteria */}
+            {evaluationData?.rubric?.criteria?.map((criterion) => (
+              <Box key={criterion.id} sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 500 }} gutterBottom>
+                  {criterion.name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  {criterion.description}
+                </Typography>
+                <FormControl component="fieldset">
+                  <RadioGroup
+                    row
+                    value={evaluations[teammate._id]?.ratings[criterion.id] || ''}
+                    onChange={(e) => handleRatingChange(teammate._id, criterion.id, e.target.value)}
+                  >
+                    {Object.entries(criterion.scaleDescriptions)
+                      .sort(([a], [b]) => parseInt(b) - parseInt(a))
+                      .map(([value, description]) => (
+                        <FormControlLabel
+                          key={value}
+                          value={value}
+                          control={<Radio sx={{ color: 'primary.main' }} />}
+                          label={
+                            <Box>
+                              <Typography variant="body2" fontWeight="bold" color="primary.main">
+                                {value}
+                              </Typography>
+                              <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                                {description}
+                              </Typography>
+                            </Box>
+                          }
+                          sx={{ mr: 3, alignItems: 'flex-start' }}
+                        />
+                      ))}
+                  </RadioGroup>
+                </FormControl>
+              </Box>
+            ))}
+            {/* Overall Feedback */}
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 500 }} gutterBottom>
+                {evaluationData?.rubric?.overallFeedback?.name}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {criterion.description}
+                {evaluationData?.rubric?.overallFeedback?.description}
               </Typography>
-              
-              <FormControl component="fieldset">
-                <RadioGroup
-                  row
-                  value={evaluations[teammate._id]?.ratings[criterion.id] || ''}
-                  onChange={(e) => handleRatingChange(teammate._id, criterion.id, e.target.value)}
-                >
-                  {Object.entries(criterion.scaleDescriptions)
-                    .sort(([a], [b]) => parseInt(b) - parseInt(a)) // Sort descending
-                    .map(([value, description]) => (
-                      <FormControlLabel
-                        key={value}
-                        value={value}
-                        control={<Radio />}
-                        label={
-                          <Box>
-                            <Typography variant="body2" fontWeight="bold">
-                              {value}
-                            </Typography>
-                            <Typography variant="caption" sx={{ display: 'block' }}>
-                              {description}
-                            </Typography>
-                          </Box>
-                        }
-                        sx={{ mr: 3, alignItems: 'flex-start' }}
-                      />
-                    ))}
-                </RadioGroup>
-              </FormControl>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                value={evaluations[teammate._id]?.overall_feedback || ''}
+                onChange={(e) => handleFeedbackChange(teammate._id, e.target.value)}
+                placeholder="Provide constructive feedback for this team member..."
+                helperText={`${evaluations[teammate._id]?.overall_feedback?.length || 0} characters (minimum 10 required)`}
+                sx={{ bgcolor: '#f5f5f5', borderRadius: 2 }}
+              />
             </Box>
-          ))}
-
-          {/* Overall Feedback */}
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              {evaluationData?.rubric?.overallFeedback?.name}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {evaluationData?.rubric?.overallFeedback?.description}
-            </Typography>
-            <TextField
-              fullWidth
-              multiline
-              rows={4}
-              value={evaluations[teammate._id]?.overall_feedback || ''}
-              onChange={(e) => handleFeedbackChange(teammate._id, e.target.value)}
-              placeholder="Provide constructive feedback for this team member..."
-              helperText={`${evaluations[teammate._id]?.overall_feedback?.length || 0} characters (minimum 10 required)`}
-            />
-          </Box>
-
-          {index < evaluationData.teammates.length - 1 && <Divider sx={{ mt: 3 }} />}
-        </Paper>
+            {index < evaluationData.teammates.length - 1 && <Divider sx={{ mt: 3 }} />}
+          </CardContent>
+        </Card>
       ))}
 
       {/* Submit Button */}
@@ -343,10 +355,17 @@ function StudentEvaluation() {
           size="large"
           onClick={handleSubmit}
           disabled={submitting}
-          sx={{ minWidth: 200 }}
+          sx={{ minWidth: 200, fontWeight: 700, fontSize: 18, boxShadow: 2, borderRadius: 2 }}
         >
           {submitting ? <CircularProgress size={24} /> : 'Submit Evaluation'}
         </Button>
+      </Box>
+      {/* Footer */}
+      <Box sx={{ mt: 6, textAlign: 'center', color: 'text.secondary' }}>
+        <Divider sx={{ mb: 2 }} />
+        <Typography variant="body2">
+          &copy; {new Date().getFullYear()} Project Peer Evaluation | For help, contact your instructor or support.
+        </Typography>
       </Box>
     </Container>
   );
