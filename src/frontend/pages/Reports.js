@@ -634,7 +634,7 @@ function Reports() {
                 Showing feedback that peers wrote about {selectedStudentComments.name} ({selectedStudentComments.evaluationDetails.length} evaluation(s))
               </Typography>
               {selectedStudentComments.evaluationDetails.map((evaluation, index) => (
-                <Paper key={evaluation._id || index} sx={{ p: 3, mb: 2, bgcolor: 'grey.50' }}>
+                <Paper key={evaluation._id || index} sx={{ p: 3, mb: 2, bgcolor: 'grey.50', position: 'relative' }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                     <Typography variant="h6" color="primary">
                       Feedback from Peer #{index + 1}
@@ -643,7 +643,22 @@ function Reports() {
                       Submitted: {evaluation.submitted_at ? new Date(evaluation.submitted_at).toLocaleDateString() : 'N/A'}
                     </Typography>
                   </Box>
-                  
+                  {/* AI Flags - Highly Visible */}
+                  {evaluation.aiFlags?.flagged && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" color="error" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <span role="img" aria-label="flag">🚩</span>
+                        <span>AI Flagged Evaluation</span>
+                        <span>
+                          <span style={{ fontWeight: 400, fontSize: 14 }}>
+                            {evaluation.aiFlags.allFive && 'All 5s'}
+                            {evaluation.aiFlags.allFive && evaluation.aiFlags.concerning ? ' & ' : ''}
+                            {evaluation.aiFlags.concerning && 'Concerning Word'}
+                          </span>
+                        </span>
+                      </Typography>
+                    </Box>
+                  )}
                   <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
                     What this peer said about {selectedStudentComments.name}:
                   </Typography>
