@@ -15,4 +15,7 @@ router.post('/verify-mfa', authController.verifyMfa);
 // Password reset endpoint
 router.post('/reset-password', authController.resetPassword);
 
+// Password update via token
+router.post('/update-password', authController.updatePassword);
+
 module.exports = router;

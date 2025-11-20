@@ -141,3 +141,34 @@ exports.resetPassword = async (req, res, next) => {
 		next(err);
 	}
 };
+
+// Password update via token handler
+exports.updatePassword = async (req, res, next) => {
+	try {
+		const { token, password } = req.body;
+		if (!token || !password) {
+			const err = new Error('Token and new password are required.');
+			err.code = 'VALIDATION_ERROR';
+			err.status = 400;
+			return next(err);
+		}
+		const professor = await Professor.findOne({ securityToken: token });
+		if (!professor || !professor.securityTokenExpires || professor.securityTokenExpires < Date.now()) {
+			const err = new Error('Invalid or expired token.');
+			err.code = 'TOKEN_ERROR';
+			err.status = 400;
+			return next(err);
+		}
+		// Update password
+		const hashed = await bcrypt.hash(password, 10);
+		professor.password = hashed;
+		professor.securityToken = undefined;
+		professor.securityTokenExpires = undefined;
+		await professor.save();
+		res.status(200).json({ message: 'Password updated successfully.' });
+	} catch (err) {
+		err.code = err.code || 'SERVER_ERROR';
+		err.status = err.status || 500;
+		next(err);
+	}
+};
