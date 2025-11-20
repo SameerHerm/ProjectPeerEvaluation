@@ -385,18 +385,13 @@ function CourseManagement() {
       <DialogTitle>Upload Student Roster (CSV)</DialogTitle>
       <DialogContent>
         <Box sx={{ mb: 2 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Upload a CSV file with the following columns:
-          </Typography>
-          <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-            <li><strong>student_id</strong> - Student ID (required)</li>
-            <li><strong>name</strong> - Student Name (required)</li>
-            <li><strong>email</strong> - Student Email (required)</li>
-            <li><strong>group_assignment</strong> - Team Assignment (optional)</li>
-          </Box>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            Note: You can also use 'group' instead of 'group_assignment' for the group column.
-          </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Upload a CSV file with the following columns:
+            </Typography>
+            <Box sx={{ mt: 1, pl: 2 }}>
+              <span style={{ fontWeight: 'bold', color: 'red', fontSize: '1.1em' }}>student_id,name,email,team_name</span>
+            </Box>
+          {/* Note removed as requested */}
         </Box>
         
         <Box sx={{ mb: 2 }}>
@@ -2232,6 +2227,20 @@ function CourseManagement() {
       </Dialog>
 
   {/* Upload Roster Dialog */}
+  <Dialog open={uploadDialogOpen} onClose={() => setUploadDialogOpen(false)} maxWidth="sm" fullWidth>
+    <DialogTitle>Upload Roster</DialogTitle>
+    <DialogContent>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Upload a CSV file with the following columns:
+        </Typography>
+        <Box sx={{ mt: 1, pl: 2 }}>
+          <span style={{ fontWeight: 'bold', color: 'red', fontSize: '1.1em' }}>student_id,name,email,team_name</span>
+        </Box>
+      </Box>
+      {/* ...existing upload controls and content... */}
+    </DialogContent>
+  </Dialog>
 
       {/* Edit Course Dialog */}
   <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
@@ -2328,9 +2337,10 @@ function CourseManagement() {
         <DialogTitle>Upload Student Roster</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2 }}>
-            <Typography variant="body2" gutterBottom>
-              Upload a CSV file with columns: student_id, name, email
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Upload a CSV file with the following columns:
             </Typography>
+            <span style={{ fontWeight: 'bold', color: 'red', fontSize: '1.1em' }}>student_id,name,email,team_name</span>
             <Button
               variant="outlined"
               component="label"
