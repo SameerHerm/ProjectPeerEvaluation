@@ -583,10 +583,10 @@ function Reports() {
                         </TableCell>
                       )}
                       <TableCell align="center">
-                          {/* Show AI flag if any evaluation for this student is flagged */}
+                          {/* Show AI flag if any evaluation for this student is flagged, with extra visibility */}
                           {Array.isArray(student.evaluationDetails) && student.evaluationDetails.some(ev => ev.aiFlags?.flagged) && (
-                            <Tooltip title="AI Flagged Evaluation">
-                              <span role="img" aria-label="flag" style={{ marginRight: 8, fontSize: '1.2em' }}>🚩</span>
+                            <Tooltip title="Flagged Evaluation">
+                              <span role="img" aria-label="flag" style={{ color: '#d32f2f', fontWeight: 'bold', fontSize: '1.5em', marginRight: 12 }}>🚩</span>
                             </Tooltip>
                           )}
                           <Tooltip title="View Comments">
