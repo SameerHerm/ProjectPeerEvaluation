@@ -5,6 +5,7 @@ import CourseManagement from './pages/CourseManagement';
 import LoginPage from './pages/LoginPage';
 import StudentEvaluation from './pages/StudentEvaluation';
 import Reports from './pages/Reports';
+import ResetPassword from './pages/ResetPassword';
 
 function App() {
     return (
@@ -14,6 +15,7 @@ function App() {
                 <Route path="/course-management" element={<CourseManagement />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/evaluate/:token" element={<StudentEvaluation />} />
+                <Route path="/reset-password/:token" element={<ResetPassword />} />
                 {/* Catch-all route for debugging */}
                 <Route path="*" element={
                     <div style={{padding: '20px'}}>
@@ -26,6 +28,7 @@ function App() {
                             <li>/course-management</li>
                             <li>/reports</li>
                             <li>/evaluate/:token</li>
+                            <li>/reset-password/:token</li>
                         </ul>
                     </div>
                 } />
