@@ -1,4 +1,8 @@
-# Peer Evaluation Automation and Feedback System
+
+
+# PEERS: Peer End to End Review System
+
+Peer Evaluation Automation and Feedback System
 
 Date: 09/04/2025  
 Status: Planning / In Progress

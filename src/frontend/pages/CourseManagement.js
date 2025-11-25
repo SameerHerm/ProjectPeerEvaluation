@@ -1,3 +1,6 @@
+// ...existing code...
+
+// ...existing code...
 import React, { useState, useEffect, useCallback } from 'react';
 
 // Test comment for GitHub upload - Preston
@@ -39,13 +42,15 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import UploadIcon from '@mui/icons-material/Upload';
 import SendIcon from '@mui/icons-material/Send';
 import GroupIcon from '@mui/icons-material/Group';
-import AssessmentIcon from '@mui/icons-material/Assessment';
+import EmojiObjectsIcon from '@mui/icons-material/EmojiObjects';
+// Remove AssessmentIcon import if present
 import PersonIcon from '@mui/icons-material/Person';
 import PeopleIcon from '@mui/icons-material/People';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import DescriptionIcon from '@mui/icons-material/Description';
 import { useNavigate } from 'react-router-dom';
 import api, { getCourseById } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -53,6 +58,7 @@ import styles from '../styles/CourseManagement.module.css';
 import '../App.css';
 
 function CourseManagement() {
+  const { currentUser } = useAuth();
   // --- Team evaluation send state/handler (place after other hooks, before return) ---
   const [sendingTeamEvaluations, setSendingTeamEvaluations] = useState({});
 
@@ -101,8 +107,9 @@ function CourseManagement() {
 
   // State for test evaluation
   const [testEvaluationOpen, setTestEvaluationOpen] = useState(false);
-  const [testEvaluationData, setTestEvaluationData] = useState(null);
-  const [testEvaluationLoading, setTestEvaluationLoading] = useState(false);
+  const [testEvaluationData] = useState(null);
+  const [testEvaluationLoading] = useState(false);
+  
 
   // State for sending evaluations (per course)
   const [sendingEvaluations, setSendingEvaluations] = useState({});
@@ -174,19 +181,25 @@ function CourseManagement() {
   };
 
   const handleDeleteStudent = async (student) => {
-    if (!studentsCourse || !student) return;
-    
+    if (!studentsCourse || !student) {
+      console.error('Delete failed: missing studentsCourse or student', { studentsCourse, student });
+      return;
+    }
+    const studentId = student._id || student.id;
+    if (!studentId) {
+      setAlert({ severity: 'error', message: 'Student ID is missing. Cannot delete.' });
+      console.error('Delete failed: student object missing _id and id', student);
+      return;
+    }
     // Confirmation dialog
     const studentName = student.name || `Student ${student.student_id}`;
     const teamInfo = student.group_assignment ? `\nTeam: ${student.group_assignment}` : `\nNot assigned to any team`;
     const confirmMessage = `Are you sure you want to delete "${studentName}" (ID: ${student.student_id})?${teamInfo}\n\nThis action cannot be undone and will:\n• Remove the student from the course\n• Unlink them from their team (if any)\n• Delete their evaluation data`;
-    
     if (!window.confirm(confirmMessage)) {
       return;
     }
-    
     try {
-      await api.delete(`/courses/${studentsCourse._id || studentsCourse.id}/students/${student._id || student.id}`);
+      await api.delete(`/courses/${studentsCourse._id || studentsCourse.id}/students/${studentId}`);
       setAlert({ severity: 'success', message: `Student "${studentName}" deleted successfully` });
       // Refresh students list
       const response = await api.get(`/courses/${studentsCourse._id || studentsCourse.id}/students`);
@@ -195,6 +208,7 @@ function CourseManagement() {
       handleStudentSearchChange('student_id', studentSearch.student_id);
     } catch (error) {
       setAlert({ severity: 'error', message: `Failed to delete student "${studentName}"` });
+      console.error('Delete student error:', error);
     }
   };
 
@@ -339,7 +353,7 @@ function CourseManagement() {
 
   // Edit Student Dialog (moved to top-level)
   const editStudentDialog = (
-    <Dialog open={editStudentOpen} onClose={() => setEditStudentOpen(false)} maxWidth="xs" fullWidth>
+  <Dialog open={editStudentOpen} onClose={() => { setEditStudentOpen(false); setStudentToEdit(null); setStudentForm({ student_id: '', name: '', email: '', group_assignment: '' }); }} maxWidth="xs" fullWidth>
       <DialogTitle>Edit Student</DialogTitle>
       <DialogContent>
         <TextField
@@ -373,7 +387,7 @@ function CourseManagement() {
         />
       </DialogContent>
       <DialogActions>
-        <Button onClick={() => setEditStudentOpen(false)}>Cancel</Button>
+  <Button onClick={() => { setEditStudentOpen(false); setStudentToEdit(null); setStudentForm({ student_id: '', name: '', email: '', group_assignment: '' }); }}>Cancel</Button>
         <Button onClick={handleUpdateStudent} variant="contained" disabled={!studentForm.student_id || !studentForm.name || !studentForm.email}>Save</Button>
       </DialogActions>
     </Dialog>
@@ -1233,53 +1247,6 @@ function CourseManagement() {
     }
   };
 
-  const handleTestEvaluation = async (course) => {
-    setTestEvaluationLoading(true);
-    setTestEvaluationOpen(true);
-    
-    try {
-      // First check if evaluations have been sent
-      const statusResponse = await api.get(`/courses/${course._id || course.id}/evaluations/status`);
-      const evaluationStatus = statusResponse.data;
-      
-      if (!evaluationStatus.evaluations_sent) {
-        setTestEvaluationData({
-          course: course,
-          evaluations_sent: false
-        });
-        return;
-      }
-      
-      // Get students for this course to find evaluation tokens
-      const studentsResponse = await api.get(`/courses/${course._id || course.id}/students`);
-      const students = studentsResponse.data;
-      
-      if (students.length === 0) {
-        setAlert({ severity: 'warning', message: 'No students found in this course to test evaluations' });
-        setTestEvaluationData(null);
-      } else {
-        // Use the first student's token for testing
-        const testStudent = students[0];
-        const frontendURL = process.env.NODE_ENV === 'production'
-          ? 'https://peer-evaluation-frontend.onrender.com'
-          : 'http://localhost:3000';
-        const evaluationUrl = `${frontendURL}/evaluate/${testStudent.evaluation_token}`;
-        
-        setTestEvaluationData({
-          course: course,
-          student: testStudent,
-          evaluationUrl: evaluationUrl,
-          allStudents: students,
-          evaluations_sent: true
-        });
-      }
-    } catch (error) {
-      setAlert({ severity: 'error', message: 'Failed to load test evaluation data' });
-      setTestEvaluationData(null);
-    } finally {
-      setTestEvaluationLoading(false);
-    }
-  };
 
   const handleLogout = () => {
     logout();
@@ -1344,6 +1311,18 @@ function CourseManagement() {
 
   return (
     <div className={styles.courseManagementContainer}>
+      {/* PEERS System Title at Top */}
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+  <EmojiObjectsIcon sx={{ fontSize: 48, color: '#1976d2' }} />
+        <Box>
+          <Typography variant="h3" sx={{ fontWeight: 800, color: '#1a237e', letterSpacing: 1, mb: 0 }}>
+            PEERS
+            <Typography component="span" variant="h6" sx={{ color: '#1976d2', fontWeight: 600, ml: 1 }}>
+              (Peer End to End Review System)
+            </Typography>
+          </Typography>
+        </Box>
+      </Box>
       {/* Evaluation Reset Confirmation Dialog */}
       <Dialog open={showEvalResetDialog} onClose={handleCancelEvalReset} maxWidth="xs" fullWidth>
         {console.log('Eval Reset Dialog rendered', { showEvalResetDialog, pendingEvalResetCourseId, pendingTeamAction })}
@@ -1366,28 +1345,44 @@ function CourseManagement() {
       {csvUploadDialog}
       {deleteAllStudentsDialog}
       <Box display="flex" justifyContent="flex-end" mb={2} gap={2}>
-        <Button variant="outlined" color="primary" onClick={() => navigate('/settings')}>
+        <Button variant="outlined" className={styles.logoutButton} color="primary" onClick={() => navigate('/settings')}>
           Settings
         </Button>
         <Button variant="outlined" className={styles.logoutButton} color="secondary" onClick={handleLogout}>
           Logout
         </Button>
       </Box>
-      <div className={styles.headerRow}>
-        <Typography variant="h4" component="h1" className={styles.title}>
-          Course Management
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button
-            variant="contained"
-            className={styles.createButton}
-            startIcon={<AddIcon />}
-            onClick={() => setCreateDialogOpen(true)}
-          >
-            Create Course
-          </Button>
+      {/* Modern Dashboard Header */}
+      <Paper elevation={3} sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        p: 3,
+        mb: 3,
+        borderRadius: 3,
+        background: 'linear-gradient(90deg, #e3f2fd 0%, #f9fafe 100%)',
+        boxShadow: '0 2px 12px rgba(25, 118, 210, 0.08)'
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box>
+            <Typography variant="h3" sx={{ color: '#1976d2', fontWeight: 700, mt: 0, mb: 0 }}>
+              {currentUser?.name ? `Welcome ${currentUser.name}` : "Welcome Professor"}
+            </Typography>
+            <Typography variant="h4" sx={{ color: '#1976d2', fontWeight: 500, mt: 0, mb: 0 }}>
+              Course Management Dashboard
+            </Typography>
+          </Box>
         </Box>
-      </div>
+        <Button
+          variant="contained"
+          className={styles.createButton}
+          startIcon={<AddIcon />}
+          size="large"
+          onClick={() => setCreateDialogOpen(true)}
+        >
+          Create Course
+        </Button>
+      </Paper>
       
       {/* Search Filters */}
       <Card sx={{ mb: 2 }}>
@@ -2126,23 +2121,13 @@ function CourseManagement() {
                         >
                           <BarChartIcon />
                         </IconButton>
-                        {/* <IconButton
-                          size="small"
-                          color="info"
-                          onClick={() => handleTestEvaluation(course)}
-                          title="Test Evaluation Form"
-                        >
-                          <Typography variant="h6" component="span" sx={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
-                            T
-                          </Typography>
-                        </IconButton> */}
                         <IconButton
                           size="small"
                           color="primary"
                           onClick={() => navigate(`/reports?course=${course._id || course.id}`)}
                           title="View Reports"
                         >
-                          <AssessmentIcon />
+                          <DescriptionIcon />
                         </IconButton>
                         <IconButton
                           size="small"
@@ -2629,7 +2614,7 @@ function CourseManagement() {
                       variant="contained"
                       color="primary"
                       onClick={() => window.open(testEvaluationData.evaluationUrl, '_blank')}
-                      startIcon={<AssessmentIcon />}
+                      startIcon={<BarChartIcon />}
                     >
                       Open Evaluation Form
                     </Button>
