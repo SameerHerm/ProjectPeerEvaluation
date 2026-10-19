@@ -14,7 +14,12 @@ This directly supports the Milestone 1 rubric by demonstrating requirements unde
 
 # Current Repository Testing State
 
-The testing baseline below is based on a direct review of the current main branch of jonpauljah/ProjectPeerEvaluation-P25-02.
+The testing baseline below records the initial review of the inherited main
+branch of jonpauljah/ProjectPeerEvaluation-P25-02. It predates the Vite,
+Vitest, and ESLint flat-configuration implementations. Current commands and
+evidence are in [Unit Testing Implementation](../testing/01-unit-testing-implementation.md)
+and [ESLint and Formatting Implementation](../eslint-migration.md); the root
+README describes the current dependency-installation CI workflow.
 
 | Area | Observed State |
 | --- | --- |

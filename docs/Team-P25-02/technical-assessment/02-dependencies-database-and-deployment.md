@@ -25,11 +25,18 @@ The inherited system relies on external packages and services for frontend build
 
 The planned CRA-to-Vite migration has been implemented while retaining React; see the [migration record](../CRA-to-Vite%20migration.md). Issue #28 subsequently added Vitest to both packages and jsdom to the frontend. Dependency additions, removals, and runtime alignment are recorded in [Dependency Updates](../dependency-updates.md), with testing evidence in [Unit Testing Implementation](../testing/01-unit-testing-implementation.md).
 
+The table in section 7.1 preserves the inherited assessment. Issue #85 adds
+shared ESLint flat configuration and Prettier commands for frontend/backend
+code, resolves the inherited lint findings, and replaces the sample-data
+script's undeclared `uuid` import with Node's built-in `crypto.randomUUID()`.
+See the [ESLint and formatting implementation](../eslint-migration.md) for
+the final configuration, zero-warning result, and accepted support limitation.
+
 Dependency management should be simplified by removing or justifying unused declarations, ensuring both frontend and backend installations are reproducible from lockfiles, and adding automated dependency/security checking as part of the CI process. The specific scanning configuration will be defined in the CI/CD Architecture Design.
 
 ## Related Documents
 
-- [Dependency Risks](../dependency-risks.md)
+- [Dependency Updates and Accepted Risks](../dependency-updates.md)
 
 <a id="04-database"></a>
 
@@ -105,6 +112,6 @@ The team will complete a MongoDB-aligned containerized environment and validate 
 
 ## Related Documents
 
-- [Current Deployment Procedures and Gaps](../current-deployment-procedures-and-gaps.md)
+- [Repository Setup and Current Limitations](../../../README.md)
 - [Containerization Assessment](../containerization-assessment/README.md)
 - [CI/CD Architecture Design](../ci-cd-architecture-design/README.md)
